@@ -43,7 +43,7 @@ def process_pdf(f1, f2):
     doc_orig = fitz.open(stream=f1.read(), filetype="pdf")
     doc_mod = fitz.open(stream=f2.read(), filetype="pdf")
     
-    # 判定の許容範囲（50に設定）
+    # 判定の許容範囲（広めの50に設定）
     X_TOL, Y_TOL = 50, 50 
     
     for p_no in range(max(len(doc_orig), len(doc_mod))):
@@ -67,18 +67,24 @@ def process_pdf(f1, f2):
         w_orig = p_orig.get_text("words")
         w_mod = page_mod.get_text("words")
         
+        # 【追加箇所の判定】
+        # 修正後にある文字が、元データの同じ場所に「存在しない」なら赤枠
         for wm in w_mod:
             txt_m = wm[4].strip()
-            if not txt_m: continue
+            if len(txt_m) < 1: continue
+            # 文字の内容まで一致するかチェック
             if not any(txt_m == wo[4].strip() and abs(wm[0]-wo[0])<X_TOL and abs(wm[1]-wo[1])<Y_TOL for wo in w_orig):
                 annot = page_mod.add_rect_annot(fitz.Rect(wm[:4]))
                 annot.set_colors(stroke=(1, 0, 0))
                 annot.update()
                 
+        # 【削除箇所の判定】（ロジックを改良）
+        # 元データにある文字が、修正後の同じ場所に「何か別の文字すら無い」なら青枠
         for wo in w_orig:
             txt_o = wo[4].strip()
-            if not txt_o: continue
-            if not any(txt_o == wm[4].strip() and abs(wo[0]-wm[0])<X_TOL and abs(wo[1]-wm[1])<Y_TOL for wm in w_mod):
+            if len(txt_o) < 1: continue
+            # 同じ座標範囲内に「何らかの文字」が存在するかだけをチェック
+            if not any(abs(wo[0]-wm[0])<X_TOL and abs(wo[1]-wm[1])<Y_TOL for wm in w_mod):
                 annot = page_mod.add_rect_annot(fitz.Rect(wo[:4]))
                 annot.set_colors(stroke=(0, 0, 1))
                 annot.update()
@@ -99,23 +105,14 @@ if file1 and file2:
 else:
     st.warning("⚠️ ファイルをアップロードしてください。")
 
-# --- 設定ヘルプ ---
+# --- 設定ヘルプ・見方・注意事項 ---
 st.markdown("---")
 with st.expander("📁 保存場所を毎回選びたい場合（設定方法）"):
-    st.write("""
-    ブラウザの設定を変更することで、保存先フォルダを毎回選択できるようになります。
-    - **Edge**: 設定 > ダウンロード > 「ダウンロード時の動作を毎回確認する」をON
-    - **Chrome**: 設定 > ダウンロード > 「ダウンロード前に各ファイルの保存場所を確認する」をON
-    """)
+    st.write("Edge/Chromeの設定 > ダウンロード > 「保存場所を確認する」をONにしてください。")
 
-# --- 判定結果の見方 ---
 st.caption("【 判定結果の見方 】")
-st.markdown("""
-- <span style="color:red; font-weight:bold;">■ 赤枠</span>：修正後（新）で **追加・変更** された項目
-- <span style="color:blue; font-weight:bold;">■ 青枠</span>：元データ（旧）から **削除** された項目
-""", unsafe_allow_html=True)
+st.markdown("- <span style='color:red; font-weight:bold;'>■ 赤枠</span>：追加・変更 / <span style='color:blue; font-weight:bold;'>■ 青枠</span>：削除", unsafe_allow_html=True)
 
-# --- 注意事項 ---
 st.caption("【 注意事項 】")
 st.warning("""
 - 本ツールは試作品です。出力結果はあくまで「参照」とし、最終確認は必ず目視で行ってください。
