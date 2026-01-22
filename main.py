@@ -9,7 +9,7 @@ st.set_page_config(page_title="検査室用PDF比較ツール", layout="centered
 
 # --- タイトルとガイド ---
 st.title("📝 検査室用PDF比較ツール")
-st.info("👇 比較したい2つのPDFファイルを、下の枠内にドラッグ＆ドロップしてください。")
+st.info("👇 2つのPDFをドロップして、下の「実行して保存」ボタンを押してください。")
 
 # フォントの準備
 font_path = "NotoSansCJKjp-Regular.otf"
@@ -29,63 +29,70 @@ file2 = st.file_uploader("【修正後（新）】をここにドロップ", typ
 
 st.markdown("---")
 
-# --- 2. 比較実行エリア ---
-st.subheader("2. 比較実行")
+# --- 2. 比較実行・即保存エリア ---
+st.subheader("2. 実行と保存")
 output_name = st.text_input("保存するファイル名", value="検査比較結果")
 
-if st.button("🚀 比較を実行する"):
-    if file1 and file2:
-        with st.spinner("解析中です。検査データを照合しています..."):
-            doc_orig = fitz.open(stream=file1.read(), filetype="pdf")
-            doc_mod = fitz.open(stream=file2.read(), filetype="pdf")
-            X_TOL, Y_TOL = 15, 15
-            
-            for p_no in range(max(len(doc_orig), len(doc_mod))):
-                if p_no >= len(doc_mod): continue
-                page_mod = doc_mod[p_no]
-                rect = page_mod.rect
+# PDFの比較・作成ロジック
+def process_pdf(f1, f2):
+    doc_orig = fitz.open(stream=f1.read(), filetype="pdf")
+    doc_mod = fitz.open(stream=f2.read(), filetype="pdf")
+    X_TOL, Y_TOL = 15, 15
+    
+    for p_no in range(max(len(doc_orig), len(doc_mod))):
+        if p_no >= len(doc_mod): continue
+        page_mod = doc_mod[p_no]
+        rect = page_mod.rect
 
-                if p_no >= len(doc_orig):
-                    warning_msg = "【 未確認 】\n\nページ不一致：\n元データに該当するページがありません。"
-                    center_rect = fitz.Rect(rect.width * 0.1, rect.height * 0.3, rect.width * 0.9, rect.height * 0.7)
-                    page_mod.insert_textbox(center_rect, warning_msg, fontsize=30, fontfile=f_path, fontname="jp-g", color=(1, 0, 0), align=fitz.TEXT_ALIGN_CENTER)
-                    inset_rect = fitz.Rect(5, 5, rect.width - 5, rect.height - 5)
-                    annot = page_mod.add_rect_annot(inset_rect)
-                    annot.set_colors(stroke=(1, 0, 0))
-                    annot.set_border(width=8)
-                    annot.update()
-                    continue
+        if p_no >= len(doc_orig):
+            warning_msg = "【 未確認 】\n\nページ不一致：\n元データに該当するページがありません。"
+            center_rect = fitz.Rect(rect.width * 0.1, rect.height * 0.3, rect.width * 0.9, rect.height * 0.7)
+            page_mod.insert_textbox(center_rect, warning_msg, fontsize=30, fontfile=f_path, fontname="jp-g", color=(1, 0, 0), align=fitz.TEXT_ALIGN_CENTER)
+            inset_rect = fitz.Rect(5, 5, rect.width - 5, rect.height - 5)
+            annot = page_mod.add_rect_annot(inset_rect)
+            annot.set_colors(stroke=(1, 0, 0))
+            annot.set_border(width=8)
+            annot.update()
+            continue
 
-                p_orig = doc_orig[p_no]
-                w_orig = p_orig.get_text("words")
-                w_mod = page_mod.get_text("words")
+        p_orig = doc_orig[p_no]
+        w_orig = p_orig.get_text("words")
+        w_mod = page_mod.get_text("words")
 
-                # 追加・変更箇所（赤枠）
-                for wm in w_mod:
-                    txt_m = wm[4].strip()
-                    if not txt_m: continue
-                    if not any(txt_m == wo[4].strip() and abs(wm[0]-wo[0])<X_TOL and abs(wm[1]-wo[1])<Y_TOL for wo in w_orig):
-                        annot = page_mod.add_rect_annot(fitz.Rect(wm[:4]))
-                        annot.set_colors(stroke=(1, 0, 0))
-                        annot.update()
+        for wm in w_mod:
+            txt_m = wm[4].strip()
+            if not txt_m: continue
+            if not any(txt_m == wo[4].strip() and abs(wm[0]-wo[0])<X_TOL and abs(wm[1]-wo[1])<Y_TOL for wo in w_orig):
+                annot = page_mod.add_rect_annot(fitz.Rect(wm[:4]))
+                annot.set_colors(stroke=(1, 0, 0))
+                annot.update()
 
-                # 削除箇所（青枠）
-                for wo in w_orig:
-                    txt_o = wo[4].strip()
-                    if not txt_o: continue
-                    if not any(abs(wo[0]-wm[0])<X_TOL and abs(wo[1]-wm[1])<Y_TOL for wm in w_mod):
-                        annot = page_mod.add_rect_annot(fitz.Rect(wo[:4]))
-                        annot.set_colors(stroke=(0, 0, 1))
-                        annot.update()
-            
-            out_pdf = io.BytesIO()
-            doc_mod.save(out_pdf, garbage=4, deflate=True)
-            st.success("照合が完了しました！")
-            st.download_button(label="📥 比較結果をダウンロード", data=out_pdf.getvalue(), file_name=f"{output_name}.pdf", mime="application/pdf")
-    else:
-        st.warning("⚠️ 比較を始めるには、2つのファイルを両方アップロードしてください。")
+        for wo in w_orig:
+            txt_o = wo[4].strip()
+            if not txt_o: continue
+            if not any(abs(wo[0]-wm[0])<X_TOL and abs(wo[1]-wm[1])<Y_TOL for wm in w_mod):
+                annot = page_mod.add_rect_annot(fitz.Rect(wo[:4]))
+                annot.set_colors(stroke=(0, 0, 1))
+                annot.update()
+    
+    out_pdf = io.BytesIO()
+    doc_mod.save(out_pdf, garbage=4, deflate=True)
+    return out_pdf.getvalue()
 
-# --- 注意書き（凡例を追記） ---
+# ボタンそのものをダウンロードボタンに置き換えます
+if file1 and file2:
+    # 2つのファイルがある時だけボタンを表示
+    st.download_button(
+        label="🚀 比較を実行してPDFを保存",
+        data=process_pdf(file1, file2),
+        file_name=f"{output_name}.pdf",
+        mime="application/pdf",
+        use_container_width=True # ボタンを横いっぱいに広げて押しやすくします
+    )
+else:
+    st.warning("⚠️ 比較を始めるには、2つのファイルを両方アップロードしてください。")
+
+# --- 注意書き ---
 st.markdown("---")
 st.caption("【 判定結果の見方 】")
 st.markdown("""
