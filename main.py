@@ -33,30 +33,47 @@ if st.button("比較を実行"):
             doc_mod = fitz.open(stream=file2.read(), filetype="pdf")
             X_TOL, Y_TOL = 15, 15
             
-            # 比較ロジック（今までの完成版コードと同じ）
             for p_no in range(max(len(doc_orig), len(doc_mod))):
                 if p_no >= len(doc_mod): continue
                 page_mod = doc_mod[p_no]
+                rect = page_mod.rect
+
+                # --- ページ不一致の処理 ---
                 if p_no >= len(doc_orig):
-                    # ページ不一致処理
                     warning_msg = "【 未確認 】\n\nページ不一致：\n元データに該当するページがありません。"
-                    center_rect = fitz.Rect(page_mod.rect.width * 0.1, page_mod.rect.height * 0.3, page_mod.rect.width * 0.9, page_mod.rect.height * 0.7)
+                    center_rect = fitz.Rect(rect.width * 0.1, rect.height * 0.3, rect.width * 0.9, rect.height * 0.7)
                     page_mod.insert_textbox(center_rect, warning_msg, fontsize=30, fontfile=f_path, fontname="jp-g", color=(1, 0, 0), align=fitz.TEXT_ALIGN_CENTER)
-                    page_mod.add_rect_annot(fitz.Rect(5, 5, page_mod.rect.width-5, page_mod.rect.height-5)).set_colors(stroke=(1, 0, 0)).set_border(width=8).update()
+                    
+                    # 太枠の描画（エラー回避のため1行ずつ実行）
+                    inset_rect = fitz.Rect(5, 5, rect.width - 5, rect.height - 5)
+                    annot = page_mod.add_rect_annot(inset_rect)
+                    annot.set_colors(stroke=(1, 0, 0))
+                    annot.set_border(width=8)
+                    annot.update()
                     continue
 
-                # 文字比較（赤枠・青枠）
+                # --- 通常比較（文字チェック） ---
                 p_orig = doc_orig[p_no]
                 w_orig = p_orig.get_text("words")
                 w_mod = page_mod.get_text("words")
+
+                # 追加箇所（赤枠）
                 for wm in w_mod:
                     txt_m = wm[4].strip()
+                    if not txt_m: continue
                     if not any(txt_m == wo[4].strip() and abs(wm[0]-wo[0])<X_TOL and abs(wm[1]-wo[1])<Y_TOL for wo in w_orig):
-                        page_mod.add_rect_annot(fitz.Rect(wm[:4])).set_colors(stroke=(1, 0, 0)).update()
+                        annot = page_mod.add_rect_annot(fitz.Rect(wm[:4]))
+                        annot.set_colors(stroke=(1, 0, 0))
+                        annot.update()
+
+                # 削除箇所（青枠）
                 for wo in w_orig:
                     txt_o = wo[4].strip()
+                    if not txt_o: continue
                     if not any(abs(wo[0]-wm[0])<X_TOL and abs(wo[1]-wm[1])<Y_TOL for wm in w_mod):
-                        page_mod.add_rect_annot(fitz.Rect(wo[:4])).set_colors(stroke=(0, 0, 1)).update()
+                        annot = page_mod.add_rect_annot(fitz.Rect(wo[:4]))
+                        annot.set_colors(stroke=(0, 0, 1))
+                        annot.update()
             
             # 結果の書き出し
             out_pdf = io.BytesIO()
