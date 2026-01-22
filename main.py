@@ -3,7 +3,6 @@ import fitz
 import os
 import urllib.request
 import io
-# 日本時間設定のために追加
 from datetime import datetime, timedelta, timezone
 
 # ページの設定
@@ -34,7 +33,7 @@ st.markdown("---")
 # --- 2. 実行エリア ---
 st.subheader("2. 実行と保存")
 
-# 日本時間（JST）を指定して取得（UTC+9時間）
+# 日本時間（JST）を指定して取得
 jst = timezone(timedelta(hours=+9), 'JST')
 current_time = datetime.now(jst).strftime("%Y%m%d_%H%M")
 
@@ -44,7 +43,7 @@ def process_pdf(f1, f2):
     doc_orig = fitz.open(stream=f1.read(), filetype="pdf")
     doc_mod = fitz.open(stream=f2.read(), filetype="pdf")
     
-    # 判定の許容範囲を30に設定（削除漏れ対策）
+    # 判定の許容範囲（30に設定）
     X_TOL, Y_TOL = 30, 30 
     
     for p_no in range(max(len(doc_orig), len(doc_mod))):
@@ -52,7 +51,6 @@ def process_pdf(f1, f2):
         page_mod = doc_mod[p_no]
         rect = page_mod.rect
         
-        # ページ不一致の場合の警告
         if p_no >= len(doc_orig):
             warning_msg = "【 未確認 】\n\nページ不一致：\n元データに該当するページがありません。"
             center_rect = fitz.Rect(rect.width * 0.1, rect.height * 0.3, rect.width * 0.9, rect.height * 0.7)
@@ -69,7 +67,6 @@ def process_pdf(f1, f2):
         w_orig = p_orig.get_text("words")
         w_mod = page_mod.get_text("words")
         
-        # 追加箇所の判定（赤枠）
         for wm in w_mod:
             txt_m = wm[4].strip()
             if not txt_m: continue
@@ -78,7 +75,6 @@ def process_pdf(f1, f2):
                 annot.set_colors(stroke=(1, 0, 0))
                 annot.update()
                 
-        # 削除箇所の判定（青枠）
         for wo in w_orig:
             txt_o = wo[4].strip()
             if not txt_o: continue
@@ -101,3 +97,28 @@ if file1 and file2:
         use_container_width=True
     )
 else:
+    st.warning("⚠️ ファイルをアップロードしてください。")
+
+# --- 設定ヘルプ ---
+st.markdown("---")
+with st.expander("📁 保存場所を毎回選びたい場合（設定方法）"):
+    st.write("""
+    ブラウザの設定を変更することで、保存先フォルダを毎回選択できるようになります。
+    - **Edge**: 設定 > ダウンロード > 「ダウンロード時の動作を毎回確認する」をON
+    - **Chrome**: 設定 > ダウンロード > 「ダウンロード前に各ファイルの保存場所を確認する」をON
+    """)
+
+# --- 判定結果の見方 ---
+st.caption("【 判定結果の見方 】")
+st.markdown("""
+- <span style="color:red; font-weight:bold;">■ 赤枠</span>：修正後（新）で **追加・変更** された項目
+- <span style="color:blue; font-weight:bold;">■ 青枠</span>：元データ（旧）から **削除** された項目
+""", unsafe_allow_html=True)
+
+# --- 注意事項 ---
+st.caption("【 注意事項 】")
+st.warning("""
+- 本ツールは試作品です。出力結果はあくまで「参照」とし、最終確認は必ず目視で行ってください。
+- 正確な比較のため、元データと比較データの「総ページ数」を合わせてから実行してください。
+- 動作の不具合や改善要望がある場合は、作成担当者（石田）までご連絡ください。
+""")
