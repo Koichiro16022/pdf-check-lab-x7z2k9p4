@@ -43,8 +43,8 @@ def process_pdf(f1, f2):
     doc_orig = fitz.open(stream=f1.read(), filetype="pdf")
     doc_mod = fitz.open(stream=f2.read(), filetype="pdf")
     
-    # 判定の許容範囲（30に設定）
-    X_TOL, Y_TOL = 30, 30 
+    # 判定の許容範囲（50に設定）
+    X_TOL, Y_TOL = 50, 50 
     
     for p_no in range(max(len(doc_orig), len(doc_mod))):
         if p_no >= len(doc_mod): continue
