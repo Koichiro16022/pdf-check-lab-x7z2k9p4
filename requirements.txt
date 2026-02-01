@@ -3,3 +3,4 @@ PyMuPDF
 pandas
 pdf2image
 pytesseract
+google-generativeai
