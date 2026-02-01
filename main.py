@@ -1,114 +1,80 @@
 import streamlit as st
-import fitz
-import os
-import urllib.request
-import io
-from datetime import datetime, timedelta, timezone
+import fitz  # PyMuPDF
+import pandas as pd
+from pdf2image import convert_from_bytes
+import pytesseract
+import difflib
 
-# ページの設定
-st.set_page_config(page_title="検査室用PDF比較ツール", layout="centered")
+# --- ページ設定 ---
+st.set_page_config(page_title="零 (ZERO) - PDF Comparison", layout="wide")
+st.title("零 (ZERO) - PDF高精度比較 (OCR搭載版)")
 
-# --- タイトルとガイド ---
-st.title("📝 検査室用PDF比較ツール")
-st.info("👇 2つのPDFをドロップして、下の「実行して保存」ボタンを押してください。")
+# --- テキスト抽出関数（自動OCR切り替え・10文字閾値） ---
+def get_pdf_text_optimized(file_bytes):
+    # ① デジタルテキスト抽出を試行
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    doc.close()
 
-# フォントの準備
-font_path = "NotoSansCJKjp-Regular.otf"
-@st.cache_resource
-def load_font():
-    if not os.path.exists(font_path):
-        font_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf"
-        urllib.request.urlretrieve(font_url, font_path)
-    return font_path
-
-f_path = load_font()
-
-# --- 1. 読み込みエリア ---
-st.subheader("1. 検査データの読み込み")
-file1 = st.file_uploader("【元データ（旧）】をここにドロップ", type="pdf")
-file2 = st.file_uploader("【修正後（新）】をここにドロップ", type="pdf")
-
-st.markdown("---")
-
-# --- 2. 実行エリア ---
-st.subheader("2. 実行と保存")
-
-# 日本時間（JST）を指定して取得
-jst = timezone(timedelta(hours=+9), 'JST')
-current_time = datetime.now(jst).strftime("%Y%m%d_%H%M")
-
-output_name = st.text_input("保存するファイル名", value=f"検査比較結果_{current_time}")
-
-def process_pdf(f1, f2):
-    doc_orig = fitz.open(stream=f1.read(), filetype="pdf")
-    doc_mod = fitz.open(stream=f2.read(), filetype="pdf")
+    # ② 10文字未満（画像PDF）と判断した場合、自動でOCRを実行
+    if len(text.strip()) < 10:
+        with st.spinner("⚠️ 画像を検出しました。無料OCRで解析中...（しばらくお待ちください）"):
+            # PDFを画像に変換
+            images = convert_from_bytes(file_bytes)
+            ocr_text = ""
+            for img in images:
+                # 日本語・英語対応
+                ocr_text += pytesseract.image_to_string(img, lang='jpn+eng')
+            return ocr_text
     
-    # 判定の許容範囲（100に設定：広範囲のズレに対応）
-    TOL = 100 
-    
-    for p_no in range(max(len(doc_orig), len(doc_mod))):
-        if p_no >= len(doc_mod): continue
-        page_mod = doc_mod[p_no]
-        
-        if p_no >= len(doc_orig): continue
-            
-        p_orig = doc_orig[p_no]
-        w_orig = p_orig.get_text("words")
-        w_mod = page_mod.get_text("words")
-        
-        # 追加・変更の判定（赤枠）
-        for wm in w_mod:
-            txt_m = wm[4].strip()
-            if not txt_m: continue
-            if not any(txt_m == wo[4].strip() and abs(wm[0]-wo[0])<TOL and abs(wm[1]-wo[1])<TOL for wo in w_orig):
-                annot = page_mod.add_rect_annot(fitz.Rect(wm[:4]))
-                annot.set_colors(stroke=(1, 0, 0))
-                annot.update()
-                
-        # 削除・変更の判定（青枠）
-        for wo in w_orig:
-            txt_o = wo[4].strip()
-            if not txt_o: continue
-            if not any(txt_o == wm[4].strip() and abs(wo[0]-wm[0])<TOL and abs(wo[1]-wm[1])<TOL for wm in w_mod):
-                annot = page_mod.add_rect_annot(fitz.Rect(wo[:4]))
-                annot.set_colors(stroke=(0, 0, 1))
-                annot.update()
-                
-    out_pdf = io.BytesIO()
-    doc_mod.save(out_pdf, garbage=4, deflate=True)
-    return out_pdf.getvalue()
+    return text
 
+# --- サイドバー：ファイルアップロード ---
+st.sidebar.header("比較用PDFをアップロード")
+file1 = st.sidebar.file_uploader("原本PDF (原本)", type=["pdf"], key="pdf1")
+file2 = st.sidebar.file_uploader("比較用PDF (最新)", type=["pdf"], key="pdf2")
+
+# --- メイン処理 ---
 if file1 and file2:
-    pdf_data = process_pdf(file1, file2)
-    st.download_button(
-        label="🚀 比較を実行して保存",
-        data=pdf_data,
-        file_name=f"{output_name}.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("原本の解析結果")
+        text1 = get_pdf_text_optimized(file1.read())
+        st.text_area("原本テキスト", text1, height=300)
+
+    with col2:
+        st.subheader("比較用の解析結果")
+        text2 = get_pdf_text_optimized(file2.read())
+        st.text_area("比較用テキスト", text2, height=300)
+
+    # 比較実行ボタン
+    if st.button("比較を実行"):
+        st.divider()
+        st.subheader("比較レポート")
+        
+        # 行単位で比較
+        diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
+        
+        # 差異を整理して表示
+        diff_data = []
+        for line in diff:
+            if line.startswith('+ '):
+                diff_data.append({"状態": "追加 (最新のみ)", "内容": line[2:]})
+            elif line.startswith('- '):
+                diff_data.append({"状態": "削除 (原本のみ)", "内容": line[2:]})
+        
+        if diff_data:
+            df_diff = pd.DataFrame(diff_data)
+            st.table(df_diff)
+        else:
+            st.success("両方のPDFに差異は見つかりませんでした。")
+
 else:
-    st.warning("⚠️ ファイルをアップロードしてください。")
+    st.info("左側のサイドバーから比較したい2つのPDFを選択してください。")
 
-# --- 設定ヘルプ ---
-st.markdown("---")
-with st.expander("📁 保存場所を毎回選びたい場合（設定方法）"):
-    st.write("Edge/Chromeの設定 > ダウンロード > 「保存場所を確認する」をONにしてください。")
-
-# --- 判定結果の見方 ---
-st.caption("【 判定結果の見方 】")
-st.markdown("""
-- <span style="color:red; font-weight:bold;">■ 赤枠</span>：追加・変更
-- <span style="color:blue; font-weight:bold;">■ 青枠</span>：削除（重なっている場合は赤枠が優先されることがあります）
-""", unsafe_allow_html=True)
-
-# --- 注意事項（最終ブラッシュアップ版） ---
-st.caption("【 注意事項 】")
-st.warning("""
-- 本ツールは試作品です。最終確認は必ず目視で行ってください。
-- **得意**：数値データの間違いを自動検知。
-- **苦手**：文字の表示位置が微妙にずれる、スキャン画像、ハンコ、手書き記号の検知。
-- デジタルPDF（Excel等から直接保存）同士での使用を推奨します。
-- 正確な比較のため、新旧の「総ページ数」を合わせて実行してください。
-- 不具合や改善要望は、作成担当者（石田）までご連絡ください。
-""")
+# --- フッター ---
+st.sidebar.markdown("---")
+st.sidebar.caption("Project: 零 (ZERO) | Powered by Python & OCR")
