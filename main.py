@@ -1,23 +1,20 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import pandas as pd
-from pdf2image import convert_from_bytes
-import pytesseract
-import difflib
 import google.generativeai as genai
 import io
 from PIL import Image
+import difflib
 
 # --- ページ設定 ---
 st.set_page_config(page_title="零・閃 Hybrid", layout="wide")
-st.title("零 (ZERO) × 閃 (SOU) - 現場実戦仕様・比較システム")
+st.title("零 (ZERO) × 閃 (SOU) - 究極・差異検出システム")
 
 # --- Gemini API (閃) の設定 ---
 model = None
 try:
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # 高精度な解析が可能な1.5-flashモデルを指定
         model = genai.GenerativeModel('models/gemini-1.5-flash')
         st.sidebar.success("✅ 閃 (SOU) エンジン接続完了")
     else:
@@ -25,57 +22,28 @@ try:
 except Exception as e:
     st.sidebar.error(f"❌ 閃 (SOU) 起動失敗: {e}")
 
-# --- 閃 (SOU) による精密解析関数（キーワード強化プロンプト） ---
-def get_text_by_sou(img):
-    if model is None:
-        return "エラー: APIが正しく設定されていません。"
-    
-    # 石田様が重視する「検査時取付」や「ハンコ」を絶対に逃さないための指示
+# --- 2枚の画像を同時に比較する関数 ---
+def compare_images_by_sou(img1, img2):
     prompt = """
-    あなたは精密機器の品質管理検査員です。この検査成績書の画像を「一文字も漏らさず」スキャンしてください。
-    
-    【重点抽出キーワード】
-    - 「検査時取付」「判定」「合格」「良」「番号」「備考」「型式」
-    - 日付、ハンコ文字（山、本、'25.03.19等）、ページ番号（2/2, 1/2等）
-    
-    【抽出ルール】
-    1. 意味の要約禁止：文書の意味を理解しようとせず、視覚的なインクの跡をすべて言語化してください。
-    2. どんな小さな注釈も書き出す：表の隅にある「検査時取付」などの小さな文字を絶対に無視しないでください。
-    3. 記号の可視化：丸印、チェック、手書きの追記がある場合は、[〇合] や [V良]、[山] のように [ ] で囲んで記述してください。
-    4. 1項目1行：比較しやすくするため、単語や項目ごとに改行して出力してください。
+    あなたは超精密な「間違い探し」の専門家です。
+    左側の画像（原本）と右側の画像（比較用）を比較し、微細な違いを全てリストアップしてください。
+
+    【重点チェック項目】
+    1. 文字の有無：「検査時取付」「山」「本」などの、片方にしかない文字やハンコ。
+    2. 数字の違い：日付（2025.03.18等）やページ番号（2/2 vs 1/2）の違い。
+    3. 記号：[〇] や [V] のチェックがあるかないか。
+
+    【出力形式】
+    「原本：〇〇 」「比較用：××」という形式で、箇条書きで出力してください。
+    違いがない場合は「完全一致」とだけ書いてください。
     """
     try:
-        response = model.generate_content([prompt, img])
+        response = model.generate_content([prompt, img1, img2])
         return response.text
     except Exception as e:
-        return f"【閃】解析エラー: {str(e)}"
+        return f"解析エラー: {e}"
 
-# --- テキスト抽出メイン関数 ---
-def get_pdf_text_optimized(file_bytes, page_num, mode):
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    page = doc.load_page(page_num)
-    
-    # 現場の細かい文字を拾うため、解像度を5倍(5.0)に引き上げ
-    mat = fitz.Matrix(5, 5)
-    
-    if mode == "閃 (AI精密解析)":
-        with st.spinner("閃 (SOU) が微細な文字を探索中..."):
-            pix = page.get_pixmap(matrix=mat)
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            text = get_text_by_sou(img)
-    elif mode == "画像OCR (無料)":
-        with st.spinner("零 (ZERO) が画像解析中..."):
-            pix = page.get_pixmap(matrix=mat)
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            text = pytesseract.image_to_string(img, lang='jpn+eng')
-    else:
-        # 通常のデジタルテキスト抽出
-        text = page.get_text()
-    
-    doc.close()
-    return text
-
-# --- メイン操作パネル ---
+# --- 操作パネル ---
 st.sidebar.header("1. PDFアップロード")
 file1 = st.sidebar.file_uploader("原本PDF", type=["pdf"], key="f1")
 file2 = st.sidebar.file_uploader("比較用PDF", type=["pdf"], key="f2")
@@ -85,45 +53,38 @@ if file1 and file2:
     page_count = len(doc1)
     doc1.close()
 
-    st.sidebar.divider()
-    st.sidebar.header("2. 解析モード選択")
+    st.sidebar.header("2. ページ選択")
     current_page = st.sidebar.number_input("表示ページ", min_value=1, max_value=page_count, value=1) - 1
-    
-    analysis_mode = st.sidebar.radio(
-        "解析エンジンを選択",
-        ["通常 (高速・無料)", "画像OCR (無料)", "閃 (AI精密解析)"]
-    )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(f"原本 ({current_page + 1}ページ目)")
-        text1 = get_pdf_text_optimized(file1.getvalue(), current_page, analysis_mode)
-        st.text_area("原本のテキスト", text1, height=400, key=f"t1_{current_page}")
-
-    with col2:
-        st.subheader(f"比較用 ({current_page + 1}ページ目)")
-        text2 = get_pdf_text_optimized(file2.getvalue(), current_page, analysis_mode)
-        st.text_area("比較用のテキスト", text2, height=400, key=f"t2_{current_page}")
-
-    if st.button("このページの差異を比較"):
-        st.divider()
-        # 差異の検出と表示
-        diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
-        diff_data = []
-        for l in diff:
-            if l.startswith('+ '):
-                diff_data.append({"状態": "追加（比較用のみ）", "内容": l[2:]})
-            elif l.startswith('- '):
-                diff_data.append({"状態": "削除（原本のみ）", "内容": l[2:]})
-        
-        if diff_data:
-            st.write("### 検出された差異リスト")
-            st.table(pd.DataFrame(diff_data))
-        else:
-            st.error("テキストレベルでの差異は見つかりませんでした。")
-            st.info("左右のテキストエリアを目視し、AIが重要な単語を読み飛ばしていないか確認してください。")
+    if st.button("閃 (SOU) で精密比較を実行"):
+        with st.spinner("2枚の画像を並べて「間違い探し」をしています..."):
+            # 画像化
+            doc1 = fitz.open(stream=file1.getvalue(), filetype="pdf")
+            doc2 = fitz.open(stream=file2.getvalue(), filetype="pdf")
+            page1 = doc1.load_page(current_page)
+            page2 = doc2.load_page(current_page)
+            
+            pix1 = page1.get_pixmap(matrix=fitz.Matrix(4, 4))
+            pix2 = page2.get_pixmap(matrix=fitz.Matrix(4, 4))
+            
+            img1 = Image.open(io.BytesIO(pix1.tobytes("png")))
+            img2 = Image.open(io.BytesIO(pix2.tobytes("png")))
+            
+            # 閃による直接比較
+            result = compare_images_by_sou(img1, img2)
+            
+            st.divider()
+            st.subheader("🔍 閃 (SOU) による差異レポート")
+            st.write(result)
+            
+            # プレビュー表示
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(img1, caption="原本 (画像)")
+            with col2:
+                st.image(img2, caption="比較用 (画像)")
+            
+            doc1.close()
+            doc2.close()
 else:
     st.info("サイドバーからPDFをアップロードしてください。")
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Project: 零 × 閃 Field-Ready Edition")
