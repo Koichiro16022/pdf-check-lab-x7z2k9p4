@@ -17,7 +17,8 @@ st.title("零 (ZERO) × 閃 (SOU) - ハイブリッド比較システム")
 try:
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
+# --- 修正後 ---
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
     else:
         st.warning("⚠️ Secretsに『GEMINI_API_KEY』が設定されていません。")
 except Exception as e:
