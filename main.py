@@ -13,19 +13,24 @@ st.set_page_config(page_title="零・閃 Hybrid", layout="wide")
 st.title("零 (ZERO) × 閃 (SOU) - ハイブリッド比較システム")
 
 # --- Gemini API (閃) の設定 ---
-# Streamlit Secretsからキーを取得します
+# 接続状態を管理する変数
+model = None
 try:
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# --- 修正後 ---
+        # モデル名をフルパスで指定することでNotFoundエラーを回避します
         model = genai.GenerativeModel('models/gemini-1.5-flash')
+        st.sidebar.success("✅ 閃 (SOU) エンジン接続完了")
     else:
-        st.warning("⚠️ Secretsに『GEMINI_API_KEY』が設定されていません。")
+        st.sidebar.error("❌ Secretsに『GEMINI_API_KEY』を設定してください")
 except Exception as e:
-    st.error(f"API接続エラー: {e}")
+    st.sidebar.error(f"❌ 閃 (SOU) 起動失敗: {e}")
 
 # --- 閃 (SOU) による精密解析関数 ---
 def get_text_by_sou(img):
+    if model is None:
+        return "エラー: APIが正しく設定されていません。"
+    
     prompt = """
     この画像は機械の検査記録（成績書）です。
     【指示】
@@ -34,15 +39,18 @@ def get_text_by_sou(img):
     3. 「判定」欄にある『〇』などの印を読み取り、「合格」や「〇」として文字で表現してください。
     4. 潰れている文字や専門用語（「番号」「備考」「検査時取付」など）は文脈から推測して正しく補完してください。
     """
-    response = model.generate_content([prompt, img])
-    return response.text
+    try:
+        response = model.generate_content([prompt, img])
+        return response.text
+    except Exception as e:
+        return f"【閃】解析エラー: {str(e)}"
 
 # --- テキスト抽出メイン関数 ---
 def get_pdf_text_optimized(file_bytes, page_num, mode):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     page = doc.load_page(page_num)
     
-    # ズーム倍率を上げて読み取り精度を向上させる(3倍)
+    # 読み取り精度向上のため、3倍の解像度で画像化
     mat = fitz.Matrix(3, 3)
     
     if mode == "閃 (AI精密解析)":
@@ -56,19 +64,17 @@ def get_pdf_text_optimized(file_bytes, page_num, mode):
             img = Image.open(io.BytesIO(pix.tobytes("png")))
             text = pytesseract.image_to_string(img, lang='jpn+eng')
     else:
-        # 通常のデジタルテキスト抽出
         text = page.get_text()
     
     doc.close()
     return text
 
-# --- サイドバー：操作パネル ---
+# --- メイン操作パネル ---
 st.sidebar.header("1. PDFアップロード")
 file1 = st.sidebar.file_uploader("原本PDF", type=["pdf"], key="f1")
 file2 = st.sidebar.file_uploader("比較用PDF", type=["pdf"], key="f2")
 
 if file1 and file2:
-    # ページ数確認
     doc1 = fitz.open(stream=file1.getvalue(), filetype="pdf")
     page_count = len(doc1)
     doc1.close()
@@ -83,9 +89,7 @@ if file1 and file2:
         help="デジタル文字が読み取れない、または誤読が多い場合は『閃』をお試しください。"
     )
 
-    # --- メイン画面表示 ---
     col1, col2 = st.columns(2)
-    
     with col1:
         st.subheader(f"原本 ({current_page + 1}ページ目)")
         text1 = get_pdf_text_optimized(file1.getvalue(), current_page, analysis_mode)
@@ -96,20 +100,16 @@ if file1 and file2:
         text2 = get_pdf_text_optimized(file2.getvalue(), current_page, analysis_mode)
         st.text_area("比較用のテキスト", text2, height=400, key=f"t2_{current_page}")
 
-    # 比較実行
     if st.button("このページの差異を比較"):
-        st.divider()
         diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
         diff_data = [{"状態": "追加" if l.startswith('+ ') else "削除", "内容": l[2:]} 
                      for l in diff if l.startswith('+ ') or l.startswith('- ')]
-        
         if diff_data:
             st.table(pd.DataFrame(diff_data))
         else:
-            st.success("このページに差異は見つかりませんでした。")
+            st.success("差異は見つかりませんでした。")
 else:
-    st.info("左側のサイドバーから比較したいPDFをアップロードしてください。")
+    st.info("サイドバーからPDFをアップロードしてください。")
 
-# --- フッター ---
 st.sidebar.markdown("---")
 st.sidebar.caption("Project: 零 × 閃 Hybrid System")
