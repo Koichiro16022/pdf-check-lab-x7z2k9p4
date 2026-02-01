@@ -10,7 +10,7 @@ from PIL import Image
 
 # --- ページ設定 ---
 st.set_page_config(page_title="零・閃 Hybrid", layout="wide")
-st.title("零 (ZERO) × 閃 (SOU) - ハイブリッド比較システム")
+st.title("零 (ZERO) × 閃 (SOU) - 超・厳密比較システム")
 
 # --- Gemini API (閃) の設定 ---
 model = None
@@ -24,20 +24,20 @@ try:
 except Exception as e:
     st.sidebar.error(f"❌ 閃 (SOU) 起動失敗: {e}")
 
-# --- 閃 (SOU) による精密解析関数（事実報告型） ---
+# --- 閃 (SOU) による精密解析関数（「意味」を排除する超厳密プロンプト） ---
 def get_text_by_sou(img):
     if model is None:
         return "エラー: APIが正しく設定されていません。"
     
-    # 忖度を排除し、微細な差異（ハンコ、日付、ページ番号）を物理的に抽出させる指示
+    # AIに「賢く振る舞うな」と強く命じ、物理的な文字羅列のみを出力させる
     prompt = """
-    この画像は検査成績書です。人間が「間違い探し」をするための比較用テキストを作成してください。
+    あなたは超精密な文字読み取り専用機です。文章の意味を理解しようとせず、画像内の視覚的な「事実」のみを報告してください。
     
     【厳守ルール】
-    1. 推測禁止：かすれている文字を勝手に補完したり、意味を解釈して整形しないでください。
-    2. 全文字抽出：日付（2025.03.18等）、ハンコの文字（山、本等）、ページ番号（2/2, 16等）は、どんなに小さくても全て「物理的に見えた通り」に書き出してください。
-    3. 記号の可視化：丸印（〇）や手書きの追記がある場合は、該当箇所の文字を [〇合] や [本] のように [ ] で囲んで記述してください。
-    4. 箇条書き出力：1行に1つの単語や項目が並ぶように、改行を多用して上から下へ順番にテキスト化してください。
+    1. 1文字の漏れも許さない：ページ番号（1/2, 2/2）、日付（2025.03.18）、スタンプ内の小さな文字（山、本）、手書きの数字、これらを全て「見たまま」書き出してください。
+    2. 記号の徹底可視化：丸印、チェック、斜線、塗りつぶしがある場所は、必ず [〇] [V] [/] のように記号化して記述してください。
+    3. 構造を無視：表を綺麗に整える必要はありません。左上から右下へ、スキャンした順に、1単語ごとに「改行」して出力してください。
+    4. 補完禁止：かすれている文字を、前後の文脈から「こうだろう」と判断して書き換えることは絶対に禁止します。
     """
     try:
         response = model.generate_content([prompt, img])
@@ -50,11 +50,11 @@ def get_pdf_text_optimized(file_bytes, page_num, mode):
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     page = doc.load_page(page_num)
     
-    # 精度向上のため、3倍の解像度で画像化
-    mat = fitz.Matrix(3, 3)
+    # 精度最大化のため、解像度をさらに上げる(4倍)
+    mat = fitz.Matrix(4, 4)
     
     if mode == "閃 (AI精密解析)":
-        with st.spinner("閃 (SOU) が詳細をスキャン中..."):
+        with st.spinner("閃 (SOU) が「事実」のみをスキャン中..."):
             pix = page.get_pixmap(matrix=mat)
             img = Image.open(io.BytesIO(pix.tobytes("png")))
             text = get_text_by_sou(img)
@@ -101,21 +101,24 @@ if file1 and file2:
 
     if st.button("このページの差異を比較"):
         st.divider()
-        # 差異検出ロジック
+        # 差異検出（空白や改行の差を無視しない厳密比較）
+        d = difflib.HtmlDiff()
+        diff_html = d.make_table(text1.splitlines(), text2.splitlines(), context=True, numlines=2)
+        
+        # 簡易表示版も併記
         diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
-        diff_data = []
-        for l in diff:
-            if l.startswith('+ '):
-                diff_data.append({"状態": "追加（比較用のみ）", "内容": l[2:]})
-            elif l.startswith('- '):
-                diff_data.append({"状態": "削除（原本のみ）", "内容": l[2:]})
+        diff_data = [{"状態": "追加" if l.startswith('+ ') else "削除", "内容": l[2:]} 
+                     for l in diff if l.startswith('+ ') or l.startswith('- ')]
         
         if diff_data:
+            st.write("### 検出された差異リスト")
             st.table(pd.DataFrame(diff_data))
         else:
-            st.success("テキストレベルでの差異は見つかりませんでした。")
+            st.error("【警告】テキスト上では差異が検出されませんでした。AIが内容を同一とみなした可能性があります。")
+            st.info("左右のテキストエリアの文字を目視で比較し、AIの読み飛ばしがないか確認してください。")
+
 else:
     st.info("サイドバーからPDFをアップロードしてください。")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Project: 零 × 閃 Hybrid System")
+st.sidebar.caption("Project: 零 × 閃 Ultra Strict")
