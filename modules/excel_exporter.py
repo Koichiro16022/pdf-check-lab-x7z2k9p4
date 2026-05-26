@@ -211,6 +211,8 @@ class ExcelExporter:
                 else:
                     new_cell.fill = self.gray_fill
 
+        self._copy_shapes(ws_check, ws)
+
         for img_diff in image_diffs:
             if img_diff.get('position') and \
                img_diff['position'] not in ['全体', '不明']:
@@ -231,9 +233,6 @@ class ExcelExporter:
         diff_positions = {diff['position']: diff for diff in cell_diffs}
         hidden_positions = {diff['position']: diff for diff in hidden_diffs}
 
-        for merged_range in ws_check.merged_cells.ranges:
-            ws.merge_cells(str(merged_range))
-
         for col_letter, col_dim in ws_check.column_dimensions.items():
             ws.column_dimensions[col_letter].width = col_dim.width
             ws.column_dimensions[col_letter].hidden = col_dim.hidden
@@ -245,11 +244,12 @@ class ExcelExporter:
         from openpyxl.cell.cell import MergedCell
         for row in ws_check.iter_rows():
             for cell in row:
-                if isinstance(cell, MergedCell):
-                    continue  # ソース側の結合子セルはスキップ
                 new_cell = ws.cell(row=cell.row, column=cell.column)
-                if isinstance(new_cell, MergedCell):
-                    continue  # ターゲット側の結合子セルもスキップ
+                if isinstance(cell, MergedCell):
+                    # 結合セル子は罫線のみコピー（結合前に設定することで外枠罫線を保持）
+                    if cell.border:
+                        new_cell.border = copy.copy(cell.border)
+                    continue
                 self._write_cell_value(new_cell, cell)
 
                 if cell.has_style:
@@ -306,6 +306,10 @@ class ExcelExporter:
                 else:
                     new_cell.fill = self.gray_fill
 
+        # 結合範囲は罫線コピー後に適用（外枠罫線を正しく保持するため）
+        for merged_range in ws_check.merged_cells.ranges:
+            ws.merge_cells(str(merged_range))
+
         self._copy_shapes(ws_check, ws)
 
         for img_diff in image_diffs:
@@ -323,15 +327,49 @@ class ExcelExporter:
 
     def _copy_shapes(self, ws_source, ws_target):
         try:
-            if hasattr(ws_source, '_shapes'):
-                for shape in ws_source._shapes:
+            if hasattr(ws_source, '_images'):
+                for img in ws_source._images:
                     try:
-                        new_shape = copy.deepcopy(shape)
-                        ws_target._shapes.append(new_shape)
-                    except:
+                        new_img = copy.deepcopy(img)
+                        ws_target._images.append(new_img)
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
+
+    def _fix_merged_borders(self, ws_source, ws_target):
+        """結合セル範囲の外枠罫線を補正する（右辺・下辺がMergedCellで失われる問題を修正）"""
+        from openpyxl.styles import Border
+        from openpyxl.cell.cell import MergedCell
+        for mr in ws_source.merged_cells.ranges:
+            tl_row, tl_col = mr.min_row, mr.min_col
+            br_row, br_col = mr.max_row, mr.max_col
+            tl_target = ws_target.cell(tl_row, tl_col)
+            if isinstance(tl_target, MergedCell):
+                continue
+            # 右辺の罫線（右端列の各行から取得）
+            right_side = None
+            for r in range(tl_row, br_row + 1):
+                src_cell = ws_source.cell(r, br_col)
+                if src_cell.border and src_cell.border.right and src_cell.border.right.style:
+                    right_side = copy.copy(src_cell.border.right)
+                    break
+            # 下辺の罫線（下端行の各列から取得）
+            bottom_side = None
+            for c_idx in range(tl_col, br_col + 1):
+                src_cell = ws_source.cell(br_row, c_idx)
+                if src_cell.border and src_cell.border.bottom and src_cell.border.bottom.style:
+                    bottom_side = copy.copy(src_cell.border.bottom)
+                    break
+            if right_side is None and bottom_side is None:
+                continue
+            current_border = tl_target.border if tl_target.border else Border()
+            tl_target.border = Border(
+                left=copy.copy(current_border.left),
+                right=right_side if right_side else copy.copy(current_border.right),
+                top=copy.copy(current_border.top),
+                bottom=bottom_side if bottom_side else copy.copy(current_border.bottom),
+            )
 
     def _create_detail_sheet(self, cell_diffs, hidden_diffs, image_diffs):
         ws = self.wb.create_sheet("不一致詳細リスト")
