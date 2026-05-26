@@ -283,4 +283,13 @@ class CellComparator:
                     'master': f"テキスト:{cm['text']}, 作成者:{cm['author']}",
                     'check': f"テキスト:{cc['text']}, 作成者:{cc['author']}",
                     'detail': ', '.join(details)}
-    
+
+    def _find_string_diff(self, str_m, str_c):
+        matcher = SequenceMatcher(None, str_m, str_c)
+        result = []
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag != 'equal':
+                result.append({'type': tag,
+                                'master_range': (i1, i2), 'check_range': (j1, j2),
+                                'master_text': str_m[i1:i2], 'check_text': str_c[j1:j2]})
+        return result
