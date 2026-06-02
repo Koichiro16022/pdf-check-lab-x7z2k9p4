@@ -100,8 +100,8 @@ class CellComparator:
         val_c_str = str(val_c)
         if val_m_str != val_c_str:
             return {'type': 'value',
-                    'master': self._format_visible(val_m_str),
-                    'check': self._format_visible(val_c_str),
+                    'master': self._format_visible(val_m),
+                    'check': self._format_visible(val_c),
                     'detail': '入力内容が違う',
                     'diff_positions': self._find_string_diff(val_m_str, val_c_str)}
         return None
@@ -124,8 +124,8 @@ class CellComparator:
                 lc = "なし（空白セル）"
             return {'type': 'data_type',
                     'master': lm, 'check': lc,
-                    'master_value': str(mv) if mv is not None else '',
-                    'check_value': str(cv) if cv is not None else '',
+                    'master_value': mv,
+                    'check_value': cv,
                     'detail': f"データの型が違う: {lm} -> {lc}"}
         return None
 
