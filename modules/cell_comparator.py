@@ -56,10 +56,14 @@ class CellComparator:
         text = str(val)
         if text == "":
             return "(空文字)"
-        # カナ検出は置換前の元テキストに対して行う
+        # 置換前の元テキストで各種文字を検出
         import re
         has_hankaku_kana = bool(re.search(r'[ｦ-ﾟ]', text))
         has_zenkaku_kana = bool(re.search(r'[ァ-ン]', text))
+        # 全角ASCII文字の検出（U+FF01-FF5E：！～の範囲）
+        has_fullwidth_ascii  = bool(re.search(r'[！-～]', text))
+        # 半角ASCII記号の検出（英数字を除く句読点等）
+        has_halfwidth_symbol = bool(re.search(r'[!-/:-@\[-~]', text))
         # ゼロ幅文字
         text = text.replace('​', '（見えないスペース）')
         text = text.replace('‌', '（見えないスペース）')
@@ -73,11 +77,13 @@ class CellComparator:
         text = text.replace('\t', '（タブ）')
         text = text.replace('　', '（全角スペース）')
         text = text.replace(' ', '（半角スペース）')
-        # カナヒントを追加（元テキストで検出済みの結果を使用）
-        if has_hankaku_kana:
-            text = text + '（半角カナ）'
-        elif has_zenkaku_kana:
-            text = text + '（全角カナ）'
+        # 全角・半角ヒントを追加（重複排除）
+        needs_zenkaku = has_zenkaku_kana or has_fullwidth_ascii
+        needs_hankaku = has_hankaku_kana or has_halfwidth_symbol
+        if needs_zenkaku:
+            text = text + '（全角）'
+        if needs_hankaku:
+            text = text + '（半角）'
         return text
 
     def _compare_value(self, cell_m, cell_c):
