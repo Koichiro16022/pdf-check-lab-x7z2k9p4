@@ -534,6 +534,12 @@ class ExcelExporter:
                         return ''
                     # 日付・日時型の処理
                     if isinstance(value, (datetime, date_type)):
+                        base_date = f"{value.year}/{value.month}/{value.day}"
+                        # ロケール付きフォーマット[$-xxxx]は直接解釈不可→フォールバック
+                        if re.search(r'\[\$-', fmt, re.IGNORECASE):
+                            if re.search(r'\[\$-(f800|0411)', fmt, re.IGNORECASE):
+                                return f"{base_date}（和暦形式）"
+                            return base_date
                         # openpyxlの組み込み日付コード→日本語表示へ変換
                         builtin_map = {
                             'mm-dd-yy': 'yyyy/m/d',
@@ -553,6 +559,9 @@ class ExcelExporter:
                         f = f.replace('d', str(value.day))
                         # 時刻部分は除去
                         f = re.sub(r'\s*h+:mm(:ss)?', '', f).strip()
+                        # 置換後もフォーマット記号が残る場合はフォールバック
+                        if re.search(r'[\[\\\$]', f):
+                            return base_date
                         return f
                     # 数値型の処理
                     if not isinstance(value, (int, float)):
