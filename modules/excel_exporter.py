@@ -44,6 +44,10 @@ class ExcelExporter:
         if isinstance(val, str):
             new_cell.number_format = '@'
             new_cell.value = val
+            # '='始まりの数式文字列は文字列型として強制設定
+            # （数式として評価されると存在しないシート参照でXML破損の原因になる）
+            if val.startswith('='):
+                new_cell.data_type = 's'
         else:
             new_cell.value = val
 
@@ -390,14 +394,18 @@ class ExcelExporter:
                 ws.cell(row, 2, diff['position'])
                 ws.cell(row, 3, "🟡 セル差異")
                 ws.cell(row, 4, d['type'])
-                master_cell = ws.cell(
-                    row, 5, str(d.get('master', ''))[:100]
-                )
-                check_cell = ws.cell(
-                    row, 6, str(d.get('check', ''))[:100]
-                )
+                master_str = str(d.get('master', ''))[:100]
+                check_str = str(d.get('check', ''))[:100]
+                master_cell = ws.cell(row, 5)
+                check_cell = ws.cell(row, 6)
                 master_cell.number_format = '@'
                 check_cell.number_format = '@'
+                master_cell.value = master_str
+                check_cell.value = check_str
+                if master_str.startswith('='):
+                    master_cell.data_type = 's'
+                if check_str.startswith('='):
+                    check_cell.data_type = 's'
                 ws.cell(row, 7, d['detail'])
                 row += 1
 
@@ -407,14 +415,18 @@ class ExcelExporter:
                 ws.cell(row, 2, diff['position'])
                 ws.cell(row, 3, "🟠 非表示差異")
                 ws.cell(row, 4, d['type'])
-                master_cell = ws.cell(
-                    row, 5, str(d.get('master', ''))[:100]
-                )
-                check_cell = ws.cell(
-                    row, 6, str(d.get('check', ''))[:100]
-                )
+                master_str = str(d.get('master', ''))[:100]
+                check_str = str(d.get('check', ''))[:100]
+                master_cell = ws.cell(row, 5)
+                check_cell = ws.cell(row, 6)
                 master_cell.number_format = '@'
                 check_cell.number_format = '@'
+                master_cell.value = master_str
+                check_cell.value = check_str
+                if master_str.startswith('='):
+                    master_cell.data_type = 's'
+                if check_str.startswith('='):
+                    check_cell.data_type = 's'
                 ws.cell(row, 7, d['detail'])
                 row += 1
 
@@ -622,11 +634,19 @@ class ExcelExporter:
                 item_cell.alignment = Alignment(vertical='center', wrap_text=True)
                 item_cell.border = border
 
-                master_cell = ws.cell(row=row_idx, column=4, value=str(diff.get('master', '')))
+                master_str = str(diff.get('master', ''))
+                master_cell = ws.cell(row=row_idx, column=4)
+                master_cell.value = master_str
+                if master_str.startswith('='):
+                    master_cell.data_type = 's'
                 master_cell.alignment = Alignment(vertical='center', wrap_text=True)
                 master_cell.border = border
 
-                check_cell = ws.cell(row=row_idx, column=5, value=str(diff.get('check', '')))
+                check_str = str(diff.get('check', ''))
+                check_cell = ws.cell(row=row_idx, column=5)
+                check_cell.value = check_str
+                if check_str.startswith('='):
+                    check_cell.data_type = 's'
                 check_cell.fill = diff_fill
                 check_cell.alignment = Alignment(vertical='center', wrap_text=True)
                 check_cell.border = border
