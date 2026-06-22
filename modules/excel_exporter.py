@@ -600,6 +600,9 @@ class ExcelExporter:
                 def _vis_val(v):
                     if v is None or v == '':
                         return ''
+                    # 論理値はExcel表記に合わせてTRUE/FALSEで返す
+                    if isinstance(v, bool):
+                        return 'TRUE' if v else 'FALSE'
                     if isinstance(v, (datetime, _dt)):
                         return f"{v.year}/{v.month}/{v.day}"
                     return str(v).replace('　', '（全角スペース）').replace(' ', '（半角スペース）')

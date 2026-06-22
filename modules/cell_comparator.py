@@ -49,6 +49,10 @@ class CellComparator:
     def _format_visible(self, val):
         if val is None:
             return "(空白セル)"
+        # 論理値型はExcel表記に合わせてTRUE/FALSEで返す
+        # （bool はintのサブクラスなので他の型チェックより先に判定する）
+        if isinstance(val, bool):
+            return "TRUE" if val else "FALSE"
         # 日付・日時型はそのまま日本語形式で返す（Pythonのstr()は使わない）
         from datetime import datetime, date as date_type
         if isinstance(val, (datetime, date_type)):
