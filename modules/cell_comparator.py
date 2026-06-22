@@ -336,8 +336,24 @@ class CellComparator:
         hm = cell_m.get('is_hidden', False)
         hc = cell_c.get('is_hidden', False)
         if hm != hc:
-            return {'type': 'hidden', 'master': hm, 'check': hc,
-                    'detail': f"非表示状態が違う: {hm} -> {hc}"}
+            BOOL_DISPLAY = {True: '非表示', False: '表示'}
+            # 行・列どちらが原因か特定
+            row_m = cell_m.get('row_hidden', False)
+            row_c = cell_c.get('row_hidden', False)
+            col_m = cell_m.get('col_hidden', False)
+            col_c = cell_c.get('col_hidden', False)
+            if row_m != row_c and col_m != col_c:
+                kind = '行・列の'
+            elif row_m != row_c:
+                kind = '行の'
+            elif col_m != col_c:
+                kind = '列の'
+            else:
+                kind = ''
+            hm_ja = BOOL_DISPLAY.get(hm, str(hm))
+            hc_ja = BOOL_DISPLAY.get(hc, str(hc))
+            return {'type': 'hidden', 'master': hm_ja, 'check': hc_ja,
+                    'detail': f"{kind}表示状態が違う: {hm_ja} -> {hc_ja}"}
         return None
 
     def _compare_hyperlink(self, cell_m, cell_c):

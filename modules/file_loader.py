@@ -174,6 +174,8 @@ class ExcelLoader:
                 'comment': comment_info,
                 'is_merged': _self._is_merged_cell(ws, row, col),
                 'is_hidden': _self._is_hidden(ws, row, col),
+                'row_hidden': _self._is_row_hidden(ws, row),
+                'col_hidden': _self._is_col_hidden(ws, col),
                 'coordinate': cell.coordinate
             }
         
@@ -207,11 +209,18 @@ class ExcelLoader:
         return None
     
     def _is_hidden(self, ws, row, col):
+        return self._is_row_hidden(ws, row) or self._is_col_hidden(ws, col)
+
+    def _is_row_hidden(self, ws, row):
+        try:
+            return bool(ws.row_dimensions[row].hidden) if row in ws.row_dimensions else False
+        except:
+            return False
+
+    def _is_col_hidden(self, ws, col):
         try:
             col_letter = get_column_letter(col)
-            row_hidden = ws.row_dimensions[row].hidden if row in ws.row_dimensions else False
-            col_hidden = ws.column_dimensions[col_letter].hidden if col_letter in ws.column_dimensions else False
-            return row_hidden or col_hidden
+            return bool(ws.column_dimensions[col_letter].hidden) if col_letter in ws.column_dimensions else False
         except:
             return False
     

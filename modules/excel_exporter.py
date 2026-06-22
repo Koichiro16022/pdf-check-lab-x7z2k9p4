@@ -245,6 +245,20 @@ class ExcelExporter:
             ws.row_dimensions[row_num].height = row_dim.height
             ws.row_dimensions[row_num].hidden = row_dim.hidden
 
+        # 差異のある行・列は非表示でも強制的に再表示する
+        import re as _re
+        _diff_rows = set()
+        _diff_cols = set()
+        for pos in list(diff_positions.keys()) + list(hidden_positions.keys()):
+            _m = _re.match(r'([A-Z]+)(\d+)', pos)
+            if _m:
+                _diff_cols.add(_m.group(1))
+                _diff_rows.add(int(_m.group(2)))
+        for _r in _diff_rows:
+            ws.row_dimensions[_r].hidden = False
+        for _c in _diff_cols:
+            ws.column_dimensions[_c].hidden = False
+
         from openpyxl.cell.cell import MergedCell
         for row in ws_check.iter_rows():
             for cell in row:
