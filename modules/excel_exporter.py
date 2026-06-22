@@ -628,9 +628,9 @@ class ExcelExporter:
                     if '¥' in fmt or re.search(r'\[\$', fmt):
                         return '通貨'
                     if re.search(r'yyyy|yy|m/d|y/m|mmm', fl):
-                        return f'日付（{fmt}形式）'
+                        return '日付'
                     if re.search(r'hh?:mm', fl):
-                        return f'時刻（{fmt}形式）'
+                        return '時刻'
                     if re.search(r'^[0#,]+\.?[0#]*$', fl):
                         return '数値'
                     return f'書式（{fmt}）'
