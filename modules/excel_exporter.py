@@ -562,14 +562,23 @@ class ExcelExporter:
                         sections = fmt.split(';')
                         if len(sections) >= 3 and sections[2].strip() == '':
                             return '（非表示）'
+                    # 通貨記号の検出（[$¥-411]形式 / "¥"形式 / 直接記号）
+                    currency_prefix = ''
+                    locale_m = re.match(r'\[\$([^-\]]*)', fmt)
+                    if locale_m:
+                        currency_prefix = locale_m.group(1)
+                    elif fmt.startswith('"'):
+                        quote_m = re.match(r'"([^"]*)"', fmt)
+                        if quote_m:
+                            currency_prefix = quote_m.group(1)
+                    elif fmt and fmt[0] in '¥$€£₩':
+                        currency_prefix = fmt[0]
                     m = re.search(r'\.([0#]+)', fmt)
                     decimals = len(m.group(1)) if m else 0
                     use_comma = ',' in fmt
                     try:
-                        if use_comma:
-                            return f"{value:,.{decimals}f}"
-                        else:
-                            return f"{value:.{decimals}f}"
+                        num_str = f"{value:,.{decimals}f}" if use_comma else f"{value:.{decimals}f}"
+                        return currency_prefix + num_str
                     except Exception:
                         return str(value)
 
