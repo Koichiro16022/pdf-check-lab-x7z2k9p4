@@ -529,9 +529,18 @@ class ExcelExporter:
                 cv = d.get('check_value')
 
                 def _fmt_num(value, fmt):
-                    from datetime import datetime, date as date_type
+                    from datetime import datetime, date as date_type, time as time_type
                     if value is None:
                         return ''
+                    # 時刻型の処理（datetime.time）
+                    if isinstance(value, time_type):
+                        leading_zero = bool(re.search(r'hh', fmt, re.IGNORECASE))
+                        has_seconds  = bool(re.search(r'ss', fmt, re.IGNORECASE))
+                        h_str = f"{value.hour:02d}" if leading_zero else str(value.hour)
+                        m_str = f"{value.minute:02d}"
+                        if has_seconds:
+                            return f"{h_str}:{m_str}:{value.second:02d}"
+                        return f"{h_str}:{m_str}"
                     # 日付・日時型の処理
                     if isinstance(value, (datetime, date_type)):
                         base_date = f"{value.year}/{value.month}/{value.day}"
