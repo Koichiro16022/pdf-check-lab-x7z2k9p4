@@ -74,6 +74,7 @@ class CellComparator:
         ERROR_FORMULAS = {
             '=na()':      '=NA()（該当なし）',
             '=iferror()': '=IFERROR()（エラー処理数式）',
+            '=1/0':       '=1/0（ゼロ除算エラーを返す数式）',
         }
         if text in ERROR_VALUES:
             return ERROR_VALUES[text]
