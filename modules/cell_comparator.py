@@ -61,6 +61,24 @@ class CellComparator:
         if text == "":
             return "(空文字)"
         import re
+        # Excelエラー値・エラー数式の日本語表示
+        ERROR_VALUES = {
+            '#N/A':    '#N/A（該当なし）',
+            '#REF!':   '#REF!（参照エラー）',
+            '#VALUE!': '#VALUE!（値エラー）',
+            '#DIV/0!': '#DIV/0!（ゼロ除算エラー）',
+            '#NAME?':  '#NAME?（名前エラー）',
+            '#NUM!':   '#NUM!（数値エラー）',
+            '#NULL!':  '#NULL!（NULLエラー）',
+        }
+        ERROR_FORMULAS = {
+            '=na()':      '=NA()（該当なし）',
+            '=iferror()': '=IFERROR()（エラー処理数式）',
+        }
+        if text in ERROR_VALUES:
+            return ERROR_VALUES[text]
+        if text.lower() in ERROR_FORMULAS:
+            return ERROR_FORMULAS[text.lower()]
         # 1文字ずつ処理してアノテーションをインラインで付与
         # （置換後テキストを再処理しないため、注記文字列が誤検出されない）
         result = ''
