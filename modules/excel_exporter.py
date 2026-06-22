@@ -557,6 +557,11 @@ class ExcelExporter:
                     # 数値型の処理
                     if not isinstance(value, (int, float)):
                         return str(value)
+                    # ゼロ非表示の検出: フォーマットの第3セクション（ゼロ用）が空なら非表示
+                    if value == 0:
+                        sections = fmt.split(';')
+                        if len(sections) >= 3 and sections[2].strip() == '':
+                            return '（非表示）'
                     m = re.search(r'\.([0#]+)', fmt)
                     decimals = len(m.group(1)) if m else 0
                     use_comma = ',' in fmt
