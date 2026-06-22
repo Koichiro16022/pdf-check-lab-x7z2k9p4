@@ -100,7 +100,11 @@ class ExcelLoader:
             def _border_color(side_obj):
                 try:
                     if side_obj and side_obj.color and hasattr(side_obj.color, 'rgb'):
-                        return str(side_obj.color.rgb)
+                        rgb_val = side_obj.color.rgb
+                        # テーマカラー等でRGB取得不可の場合はNoneを返す
+                        # 有効なRGB文字列は6文字(RRGGBB)または8文字(AARRGGBB)
+                        if isinstance(rgb_val, str) and len(rgb_val) in (6, 8):
+                            return rgb_val
                 except Exception:
                     pass
                 return None

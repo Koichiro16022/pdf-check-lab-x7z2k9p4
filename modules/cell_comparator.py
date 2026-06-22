@@ -170,68 +170,136 @@ class CellComparator:
 
     def _compare_format(self, cell_m, cell_c):
         diffs = []
+
+        # ── 翻訳マップ ──────────────────────────────────────────
+        BORDER_STYLE = {
+            None: '罫線なし', 'thin': '細線', 'thick': '太線',
+            'medium': '中線', 'dashed': '破線', 'dotted': '点線',
+            'double': '二重線', 'hair': '極細線',
+            'mediumDashed': '中破線', 'dashDot': '一点鎖線',
+            'mediumDashDot': '中一点鎖線', 'dashDotDot': '二点鎖線',
+            'mediumDashDotDot': '中二点鎖線', 'slantDashDot': '斜め一点鎖線',
+        }
+        BORDER_SIDE = {'top': '上', 'bottom': '下', 'left': '左', 'right': '右'}
+        H_ALIGN = {
+            None: '標準', 'general': '標準', 'center': '中央揃え',
+            'left': '左揃え', 'right': '右揃え', 'fill': '繰り返し',
+            'justify': '均等割り付け', 'centerContinuous': '選択範囲内で中央',
+            'distributed': '均等割り付け（均等）',
+        }
+        V_ALIGN = {
+            None: '下揃え', 'top': '上揃え', 'center': '中央揃え',
+            'bottom': '下揃え', 'justify': '均等割り付け',
+            'distributed': '均等割り付け（均等）',
+        }
+        UNDERLINE = {
+            None: 'なし', 'single': '下線（単線）', 'double': '下線（二重線）',
+            'singleAccounting': '下線（会計・単線）',
+            'doubleAccounting': '下線（会計・二重線）',
+        }
+        VERT_ALIGN = {
+            None: '標準', 'baseline': '標準',
+            'superscript': '上付き', 'subscript': '下付き',
+        }
+        BOOL_JA = {True: 'あり', False: 'なし', None: 'なし'}
+
+        def _bs(v):
+            return BORDER_STYLE.get(v, str(v) if v is not None else '罫線なし')
+
+        def _tr(v, mapping):
+            return mapping.get(v, str(v) if v is not None else 'なし')
+
+        # ── フォント ────────────────────────────────────────────
         font_m = cell_m.get('font', {})
         font_c = cell_c.get('font', {})
 
-        checks = [
-            ('font_name', 'name', 'フォント名'),
-            ('font_size', 'size', 'フォントサイズ'),
-            ('font_bold', 'bold', '太字'),
-            ('font_italic', 'italic', '斜体'),
-            ('font_underline', 'underline', '下線'),
-            ('font_strike', 'strike', '取り消し線'),
-            ('font_vert_align', 'vert_align', '上付き・下付き'),
+        font_checks = [
+            ('font_name',       'name',       'フォント名',     None),
+            ('font_size',       'size',       'フォントサイズ', None),
+            ('font_bold',       'bold',       '太字',           BOOL_JA),
+            ('font_italic',     'italic',     '斜体',           BOOL_JA),
+            ('font_underline',  'underline',  '下線',           UNDERLINE),
+            ('font_strike',     'strike',     '取り消し線',     BOOL_JA),
+            ('font_vert_align', 'vert_align', '上付き・下付き', VERT_ALIGN),
         ]
-        for typ, key, label in checks:
-            if font_m.get(key) != font_c.get(key):
-                diffs.append({'type': typ, 'master': font_m.get(key), 'check': font_c.get(key),
-                               'detail': f"{label}: {font_m.get(key)} -> {font_c.get(key)}"})
+        for typ, key, label, mapping in font_checks:
+            vm, vc = font_m.get(key), font_c.get(key)
+            if vm != vc:
+                vm_ja = _tr(vm, mapping) if mapping else (str(vm) if vm is not None else 'なし')
+                vc_ja = _tr(vc, mapping) if mapping else (str(vc) if vc is not None else 'なし')
+                diffs.append({'type': typ, 'master': vm_ja, 'check': vc_ja,
+                               'detail': f"{label}: {vm_ja} -> {vc_ja}"})
 
         if font_m.get('color') != font_c.get('color'):
             diffs.append({'type': 'font_color', 'master': font_m.get('color'),
                            'check': font_c.get('color'), 'detail': '文字色が違う'})
 
+        # ── 塗りつぶし ──────────────────────────────────────────
         fill_m = cell_m.get('fill', {})
         fill_c = cell_c.get('fill', {})
         if fill_m.get('start_color') != fill_c.get('start_color'):
             diffs.append({'type': 'fill_color', 'master': fill_m.get('start_color'),
                            'check': fill_c.get('start_color'), 'detail': '背景色が違う'})
 
+        # ── 罫線 ────────────────────────────────────────────────
         border_m = cell_m.get('border', {})
         border_c = cell_c.get('border', {})
         for side in ['top', 'bottom', 'left', 'right']:
-            if border_m.get(side) != border_c.get(side):
+            side_ja = BORDER_SIDE[side]
+            bm, bc = border_m.get(side), border_c.get(side)
+            if bm != bc:
                 diffs.append({'type': f'border_{side}',
-                               'master': border_m.get(side), 'check': border_c.get(side),
-                               'detail': f'{side}罫線スタイルが違う: {border_m.get(side)} -> {border_c.get(side)}'})
+                               'master': _bs(bm), 'check': _bs(bc),
+                               'detail': f'{side_ja}罫線スタイルが違う: {_bs(bm)} -> {_bs(bc)}'})
             ck = f'{side}_color'
             if border_m.get(ck) != border_c.get(ck):
                 diffs.append({'type': f'border_{side}_color',
                                'master': border_m.get(ck), 'check': border_c.get(ck),
-                               'detail': f'{side}罫線の色が違う: {border_m.get(ck)} -> {border_c.get(ck)}'})
+                               'detail': f'{side_ja}罫線の色が違う: {border_m.get(ck)} -> {border_c.get(ck)}'})
 
+        # ── 配置 ────────────────────────────────────────────────
         align_m = cell_m.get('alignment', {})
         align_c = cell_c.get('alignment', {})
-        align_checks = [
-            ('alignment_horizontal', 'horizontal', '水平配置'),
-            ('alignment_vertical', 'vertical', '垂直配置'),
-            ('alignment_text_rotation', 'text_rotation', 'テキスト角度'),
-            ('alignment_indent', 'indent', 'インデント'),
-        ]
-        for typ, key, label in align_checks:
-            if align_m.get(key) != align_c.get(key):
-                diffs.append({'type': typ, 'master': align_m.get(key), 'check': align_c.get(key),
-                               'detail': f"{label}: {align_m.get(key)} -> {align_c.get(key)}"})
 
-        if bool(align_m.get('wrap_text')) != bool(align_c.get('wrap_text')):
+        hm, hc = align_m.get('horizontal'), align_c.get('horizontal')
+        if hm != hc:
+            hm_ja, hc_ja = _tr(hm, H_ALIGN), _tr(hc, H_ALIGN)
+            diffs.append({'type': 'alignment_horizontal', 'master': hm_ja, 'check': hc_ja,
+                           'detail': f"水平配置: {hm_ja} -> {hc_ja}"})
+
+        vm2, vc2 = align_m.get('vertical'), align_c.get('vertical')
+        if vm2 != vc2:
+            vm2_ja, vc2_ja = _tr(vm2, V_ALIGN), _tr(vc2, V_ALIGN)
+            diffs.append({'type': 'alignment_vertical', 'master': vm2_ja, 'check': vc2_ja,
+                           'detail': f"垂直配置: {vm2_ja} -> {vc2_ja}"})
+
+        rm, rc = align_m.get('text_rotation'), align_c.get('text_rotation')
+        if rm != rc:
+            rm_ja = f"{rm}度" if rm is not None else "なし"
+            rc_ja = f"{rc}度" if rc is not None else "なし"
+            diffs.append({'type': 'alignment_text_rotation', 'master': rm_ja, 'check': rc_ja,
+                           'detail': f"テキスト角度: {rm_ja} -> {rc_ja}"})
+
+        im, ic = align_m.get('indent', 0), align_c.get('indent', 0)
+        if im != ic:
+            diffs.append({'type': 'alignment_indent', 'master': im, 'check': ic,
+                           'detail': f"インデント: {im} -> {ic}"})
+
+        wm, wc = bool(align_m.get('wrap_text')), bool(align_c.get('wrap_text'))
+        if wm != wc:
+            wm_ja = BOOL_JA.get(align_m.get('wrap_text'), 'あり' if wm else 'なし')
+            wc_ja = BOOL_JA.get(align_c.get('wrap_text'), 'あり' if wc else 'なし')
             diffs.append({'type': 'alignment_wrap_text',
-                           'master': align_m.get('wrap_text'), 'check': align_c.get('wrap_text'),
-                           'detail': f"折り返し表示: {align_m.get('wrap_text')} -> {align_c.get('wrap_text')}"})
+                           'master': wm_ja, 'check': wc_ja,
+                           'detail': f"折り返し表示: {wm_ja} -> {wc_ja}"})
 
-        if bool(align_m.get('shrink_to_fit')) != bool(align_c.get('shrink_to_fit')):
+        sm, sc = bool(align_m.get('shrink_to_fit')), bool(align_c.get('shrink_to_fit'))
+        if sm != sc:
+            sm_ja = BOOL_JA.get(align_m.get('shrink_to_fit'), 'あり' if sm else 'なし')
+            sc_ja = BOOL_JA.get(align_c.get('shrink_to_fit'), 'あり' if sc else 'なし')
             diffs.append({'type': 'alignment_shrink_to_fit',
-                           'master': align_m.get('shrink_to_fit'), 'check': align_c.get('shrink_to_fit'),
-                           'detail': f"縮小して全体を表示: {align_m.get('shrink_to_fit')} -> {align_c.get('shrink_to_fit')}"})
+                           'master': sm_ja, 'check': sc_ja,
+                           'detail': f"縮小して全体を表示: {sm_ja} -> {sc_ja}"})
 
         return diffs
 
@@ -239,8 +307,10 @@ class CellComparator:
         mm = cell_m.get('is_merged')
         mc = cell_c.get('is_merged')
         if mm != mc:
-            return {'type': 'merged', 'master': mm, 'check': mc,
-                    'detail': f"結合範囲が違う: {mm} -> {mc}"}
+            mm_ja = mm if mm is not None else '結合なし'
+            mc_ja = mc if mc is not None else '結合なし'
+            return {'type': 'merged', 'master': mm_ja, 'check': mc_ja,
+                    'detail': f"結合範囲が違う: {mm_ja} -> {mc_ja}"}
         return None
 
     def _compare_hidden(self, cell_m, cell_c):
