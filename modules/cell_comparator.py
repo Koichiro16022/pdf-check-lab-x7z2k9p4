@@ -207,7 +207,7 @@ class CellComparator:
             'distributed': '均等割り付け（均等）',
         }
         V_ALIGN = {
-            None: '下揃え', 'top': '上揃え', 'center': '中央揃え',
+            None: '設定なし', 'top': '上揃え', 'center': '中央揃え',
             'bottom': '下揃え', 'justify': '均等割り付け',
             'distributed': '均等割り付け（均等）',
         }
