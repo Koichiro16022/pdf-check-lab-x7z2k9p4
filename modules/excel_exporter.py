@@ -602,16 +602,41 @@ class ExcelExporter:
 
                 master_display = _fmt_num(mv, master_val) if mv is not None else master_val
                 check_display = _fmt_num(cv, check_val) if cv is not None else check_val
-                # detail の表示も実際の値に差し替え
-                detail = f"表示形式が違う: {master_display} -> {check_display}"
-                if ': ' in detail:
-                    detail_label, detail_value = detail.split(': ', 1)
-                    lines.append(f"{num}{detail_label}:")
-                    lines.append(f" {detail_value}")
+                def _fmt_code_ja(fmt):
+                    """書式コードを日本語に変換"""
+                    fl = fmt.lower().strip()
+                    if fl in ('general', ''):
+                        return '標準'
+                    if fl == '@':
+                        return '文字列'
+                    if re.search(r'0\.0+%|0%', fl):
+                        return 'パーセント'
+                    if '¥' in fmt or re.search(r'\[\$', fmt):
+                        return '通貨'
+                    if re.search(r'yyyy|yy|m/d|y/m|mmm', fl):
+                        return f'日付（{fmt}形式）'
+                    if re.search(r'hh?:mm', fl):
+                        return f'時刻（{fmt}形式）'
+                    if re.search(r'^[0#,]+\.?[0#]*$', fl):
+                        return '数値'
+                    return f'書式（{fmt}）'
+
+                # 表示結果が同じ場合は書式の種類を日本語で表示
+                if master_display == check_display:
+                    lines.append(f"{num}表示形式が違う:")
+                    lines.append(f" 原本: {_fmt_code_ja(master_val)}")
+                    lines.append(f" 比較データ: {_fmt_code_ja(check_val)}")
                 else:
-                    lines.append(f"{num}{detail}")
-                lines.append(f" 原本: {master_display}")
-                lines.append(f" 比較データ: {check_display}")
+                    # detail の表示も実際の値に差し替え
+                    detail = f"表示形式が違う: {master_display} -> {check_display}"
+                    if ': ' in detail:
+                        detail_label, detail_value = detail.split(': ', 1)
+                        lines.append(f"{num}{detail_label}:")
+                        lines.append(f" {detail_value}")
+                    else:
+                        lines.append(f"{num}{detail}")
+                    lines.append(f" 原本: {master_display}")
+                    lines.append(f" 比較データ: {check_display}")
                 continue
             elif d['type'] == 'data_type':
                 mv = d.get('master_value', '')
