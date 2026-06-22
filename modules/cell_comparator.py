@@ -56,35 +56,52 @@ class CellComparator:
         text = str(val)
         if text == "":
             return "(空文字)"
-        # 置換前の元テキストで各種文字を検出
         import re
-        has_hankaku_kana = bool(re.search(r'[ｦ-ﾟ]', text))
-        has_zenkaku_kana = bool(re.search(r'[ァ-ン]', text))
-        # 全角ASCII文字の検出（U+FF01-FF5E：！～の範囲）
-        has_fullwidth_ascii  = bool(re.search(r'[！-～]', text))
-        # 半角ASCII記号の検出（英数字を除く句読点等）
-        has_halfwidth_symbol = bool(re.search(r'[!-/:-@\[-~]', text))
-        # ゼロ幅文字
-        text = text.replace('​', '（見えないスペース）')
-        text = text.replace('‌', '（見えないスペース）')
-        text = text.replace('‍', '（見えないスペース）')
-        text = text.replace('﻿', '（見えないスペース）')
-        text = text.replace(' ', '（特殊スペース・半角幅）')
-        text = text.replace(' ', '（特殊スペース・全角幅）')
-        text = text.replace(' ', '（特殊スペース・半角幅）')
-        text = text.replace('\n', '（改行）')
-        text = text.replace('\r', '（改行CR）')
-        text = text.replace('\t', '（タブ）')
-        text = text.replace('　', '（全角スペース）')
-        text = text.replace(' ', '（半角スペース）')
-        # 全角・半角ヒントを追加（重複排除）
-        needs_zenkaku = has_zenkaku_kana or has_fullwidth_ascii
-        needs_hankaku = has_hankaku_kana or has_halfwidth_symbol
-        if needs_zenkaku:
-            text = text + '（全角）'
-        if needs_hankaku:
-            text = text + '（半角）'
-        return text
+        # 1文字ずつ処理してアノテーションをインラインで付与
+        # （置換後テキストを再処理しないため、注記文字列が誤検出されない）
+        result = ''
+        for c in text:
+            o = ord(c)
+            # ゼロ幅・不可視文字
+            if o in (0x200B, 0x200C, 0x200D, 0xFEFF):
+                result += '（見えないスペース）'
+            # 特殊スペース
+            elif o == 0x00A0:   # NO-BREAK SPACE
+                result += '（特殊スペース・半角幅）'
+            elif o == 0x2003:   # EM SPACE
+                result += '（特殊スペース・全角幅）'
+            elif o == 0x2002:   # EN SPACE
+                result += '（特殊スペース・半角幅）'
+            # 制御文字
+            elif c == '\n':
+                result += '（改行）'
+            elif c == '\r':
+                result += '（改行CR）'
+            elif c == '\t':
+                result += '（タブ）'
+            # スペース類
+            elif o == 0x3000:   # IDEOGRAPHIC SPACE（全角スペース）
+                result += '（全角スペース）'
+            elif c == ' ':      # U+0020 半角スペース
+                result += '（半角スペース）'
+            # 波ダッシュ（U+301C）— 全角チルダ（～ U+FF5E）や半角チルダ（~ U+007E）と混同されやすい
+            elif o == 0x301C:
+                result += '〜（波）'
+            # 半角カナ [ｦ-ﾟ]
+            elif re.match(r'[ｦ-ﾟ]', c):
+                result += c + '（半角）'
+            # 全角カナ [ァ-ン]
+            elif re.match(r'[ァ-ン]', c):
+                result += c + '（全角）'
+            # 全角ASCII [！-～] (U+FF01-U+FF5E)
+            elif re.match(r'[！-～]', c):
+                result += c + '（全角）'
+            # 半角ASCII記号（英数字・スペース除く、印刷可能文字）
+            elif c.isascii() and c.isprintable() and not c.isalnum() and c != ' ':
+                result += c + '（半角）'
+            else:
+                result += c
+        return result
 
     def _compare_value(self, cell_m, cell_c):
         val_m = cell_m['value']

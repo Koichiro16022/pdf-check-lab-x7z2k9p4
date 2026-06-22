@@ -465,48 +465,64 @@ class ExcelExporter:
             num_idx += 1
 
             if d['type'] == 'value':
-                def _add_char_hints(text):
-                    """英数字に文字種別アノテーションを付与
-                    20文字以下: 1文字ずつアノテーション
-                    21文字以上: 文字種のサマリーを末尾に付与
+                def _add_char_hints(master_text, check_text):
+                    """混同しやすいペア(0/O、1/l/I)が両方の値に存在する場合のみアノテーション付与
+                    20文字以下: 対象文字を1文字ずつアノテーション
+                    21文字以上: 対象文字を含む場合にサマリーを末尾に付与
                     """
-                    # 英数字が含まれていなければそのまま返す
-                    if not any(c.isascii() and c.isalnum() for c in text):
-                        return text
-                    has_digit  = any(c.isascii() and c.isdigit() for c in text)
-                    has_upper  = any(c.isascii() and c.isupper() for c in text)
-                    has_lower  = any(c.isascii() and c.islower() for c in text)
-                    if len(text) <= 20:
-                        # 1文字ずつアノテーション
-                        result = ''
-                        for c in text:
-                            if c.isascii() and c.isdigit():
-                                result += c + '（数字）'
-                            elif c.isascii() and c.isupper():
-                                result += c + '（英大文字）'
-                            elif c.isascii() and c.islower():
-                                result += c + '（英小文字）'
-                            else:
-                                result += c
-                        return result
-                    else:
-                        # サマリーアノテーション
-                        categories = []
-                        if has_digit:
-                            categories.append('数字')
-                        if has_upper:
-                            categories.append('英大文字')
-                        if has_lower:
-                            categories.append('英小文字')
-                        if len(categories) == 1:
-                            summary = f'（全て{categories[0]}）'
+                    combined = master_text + check_text
+                    confusable_groups = [
+                        {'0', 'O', 'o'},  # ゼロ vs オー
+                        {'1', 'l', 'I'},  # イチ vs エル vs アイ
+                    ]
+                    # 数字と英字が両方含まれるグループのみアノテーション対象に追加
+                    needs_annotation = set()
+                    for group in confusable_groups:
+                        present = {c for c in combined if c in group}
+                        if any(c.isdigit() for c in present) and any(c.isalpha() for c in present):
+                            needs_annotation |= present
+
+                    def _annotate(text):
+                        if not needs_annotation:
+                            return text
+                        if len(text) <= 20:
+                            result = ''
+                            for c in text:
+                                if c in needs_annotation:
+                                    if c.isdigit():
+                                        result += c + '（数字）'
+                                    elif c.isupper():
+                                        result += c + '（英大文字）'
+                                    else:
+                                        result += c + '（英小文字）'
+                                else:
+                                    result += c
+                            return result
                         else:
-                            summary = f'（{"と".join(categories)}の混在）'
-                        return text + summary
+                            # 21文字以上はサマリー（対象文字が含まれる場合のみ）
+                            present_in = {c for c in text if c in needs_annotation}
+                            if not present_in:
+                                return text
+                            categories = []
+                            if any(c.isdigit() for c in present_in):
+                                categories.append('数字')
+                            if any(c.isupper() for c in present_in):
+                                categories.append('英大文字')
+                            if any(c.islower() for c in present_in):
+                                categories.append('英小文字')
+                            summary = f'（全て{categories[0]}）' if len(categories) == 1 \
+                                      else f'（{"と".join(categories)}の混在）'
+                            return text + summary
+
+                    return _annotate(master_text), _annotate(check_text)
+
                 base_m = master_val[:50]
                 base_c = check_val[:50]
-                master_display = base_m + '（数式）' if base_m.startswith('=') else _add_char_hints(base_m)
-                check_display = base_c + '（数式）' if base_c.startswith('=') else _add_char_hints(base_c)
+                if base_m.startswith('=') or base_c.startswith('='):
+                    master_display = base_m + '（数式）' if base_m.startswith('=') else base_m
+                    check_display  = base_c + '（数式）' if base_c.startswith('=') else base_c
+                else:
+                    master_display, check_display = _add_char_hints(base_m, base_c)
             elif d['type'] == 'number_format':
                 import re
                 mv = d.get('master_value')
