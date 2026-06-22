@@ -465,8 +465,48 @@ class ExcelExporter:
             num_idx += 1
 
             if d['type'] == 'value':
-                master_display = master_val[:50] + ('（数式）' if master_val.startswith('=') else '')
-                check_display = check_val[:50] + ('（数式）' if check_val.startswith('=') else '')
+                def _add_char_hints(text):
+                    """英数字に文字種別アノテーションを付与
+                    20文字以下: 1文字ずつアノテーション
+                    21文字以上: 文字種のサマリーを末尾に付与
+                    """
+                    # 英数字が含まれていなければそのまま返す
+                    if not any(c.isascii() and c.isalnum() for c in text):
+                        return text
+                    has_digit  = any(c.isascii() and c.isdigit() for c in text)
+                    has_upper  = any(c.isascii() and c.isupper() for c in text)
+                    has_lower  = any(c.isascii() and c.islower() for c in text)
+                    if len(text) <= 20:
+                        # 1文字ずつアノテーション
+                        result = ''
+                        for c in text:
+                            if c.isascii() and c.isdigit():
+                                result += c + '（数字）'
+                            elif c.isascii() and c.isupper():
+                                result += c + '（英大文字）'
+                            elif c.isascii() and c.islower():
+                                result += c + '（英小文字）'
+                            else:
+                                result += c
+                        return result
+                    else:
+                        # サマリーアノテーション
+                        categories = []
+                        if has_digit:
+                            categories.append('数字')
+                        if has_upper:
+                            categories.append('英大文字')
+                        if has_lower:
+                            categories.append('英小文字')
+                        if len(categories) == 1:
+                            summary = f'（全て{categories[0]}）'
+                        else:
+                            summary = f'（{"と".join(categories)}の混在）'
+                        return text + summary
+                base_m = master_val[:50]
+                base_c = check_val[:50]
+                master_display = base_m + '（数式）' if base_m.startswith('=') else _add_char_hints(base_m)
+                check_display = base_c + '（数式）' if base_c.startswith('=') else _add_char_hints(base_c)
             elif d['type'] == 'number_format':
                 import re
                 mv = d.get('master_value')
