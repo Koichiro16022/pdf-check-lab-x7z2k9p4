@@ -445,11 +445,15 @@ class ExcelExporter:
                                     target = ws.cell(row=r, column=c)
                                     if not target.fill or target.fill.fill_type != 'solid':
                                         target.fill = self.orange_fill
-                            # 範囲の左上にコメント付与
+                            # 範囲の左上にコメント付与（既存コメントに追記）
                             tl = ws.cell(row=min_row, column=min_col)
-                            tl.comment = Comment(f"📋 {label}\n範囲: {ref}", "零(ZERO)")
-                            tl.comment.width = 300
-                            tl.comment.height = 80
+                            cf_comment = f"📋 {label}\n範囲: {ref}"
+                            if tl.comment:
+                                tl.comment.text += f"\n\n{cf_comment}"
+                            else:
+                                tl.comment = Comment(cf_comment, "零(ZERO)")
+                                tl.comment.width = 300
+                                tl.comment.height = 80
                             ws.row_dimensions[min_row].hidden = False
                         else:
                             col_s = _re2.match(r'([A-Z]+)(\d+)', ref)
@@ -457,10 +461,16 @@ class ExcelExporter:
                                 c = _col_idx(col_s.group(1))
                                 r = int(col_s.group(2))
                                 target = ws.cell(row=r, column=c)
-                                target.fill = self.orange_fill
-                                target.comment = Comment(f"📋 {label}\n範囲: {ref}", "零(ZERO)")
-                                target.comment.width = 300
-                                target.comment.height = 80
+                                # 既存の黄色（値差異）を上書きしない
+                                if target.fill.fill_type != 'solid':
+                                    target.fill = self.orange_fill
+                                cf_comment = f"📋 {label}\n範囲: {ref}"
+                                if target.comment:
+                                    target.comment.text += f"\n\n{cf_comment}"
+                                else:
+                                    target.comment = Comment(cf_comment, "零(ZERO)")
+                                    target.comment.width = 300
+                                    target.comment.height = 80
                                 ws.row_dimensions[r].hidden = False
                     except Exception:
                         pass
