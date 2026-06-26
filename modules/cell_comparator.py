@@ -399,21 +399,24 @@ class CellComparator:
         cc = cell_c.get('comment')
         if cm == cc:
             return None
+        def _fmt_comment(c):
+            if c is None:
+                return 'メモなし'
+            text = (c.get('text') or '').strip()
+            return f"メモあり（内容: {text}）" if text else 'メモあり'
+
         if cm is None or cc is None:
-            has = cm if cm is not None else cc
             return {'type': 'comment',
-                    'master': f"テキスト:{cm['text']}, 作成者:{cm['author']}" if cm else '(なし)',
-                    'check': f"テキスト:{cc['text']}, 作成者:{cc['author']}" if cc else '(なし)',
+                    'master': _fmt_comment(cm),
+                    'check': _fmt_comment(cc),
                     'detail': 'コメント・メモの有無が違う'}
         details = []
         if cm.get('text') != cc.get('text'):
             details.append('テキスト違い')
-        if cm.get('author') != cc.get('author'):
-            details.append(f"作成者違い: {cm.get('author')} -> {cc.get('author')}")
         if details:
             return {'type': 'comment',
-                    'master': f"テキスト:{cm['text']}, 作成者:{cm['author']}",
-                    'check': f"テキスト:{cc['text']}, 作成者:{cc['author']}",
+                    'master': _fmt_comment(cm),
+                    'check': _fmt_comment(cc),
                     'detail': ', '.join(details)}
 
     def _find_string_diff(self, str_m, str_c):

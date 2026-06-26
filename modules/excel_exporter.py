@@ -628,7 +628,7 @@ class ExcelExporter:
                         base_date = f"{value.year}/{value.month}/{value.day}"
                         # ロケール付きフォーマット[$-xxxx]は直接解釈不可→フォールバック
                         if re.search(r'\[\$-', fmt, re.IGNORECASE):
-                            if re.search(r'\[\$-(f800|0411)', fmt, re.IGNORECASE):
+                            if re.search(r'\[\$-f800', fmt, re.IGNORECASE) and re.search(r'ggg?|(?<![a-z])e(?![e])', fmt, re.IGNORECASE):
                                 return f"{base_date}（和暦形式）"
                             return base_date
                         # openpyxlの組み込み日付コード→日本語表示へ変換
@@ -688,26 +688,41 @@ class ExcelExporter:
                     """書式コードを日本語に変換"""
                     fl = fmt.lower().strip()
                     if fl in ('general', ''):
-                        return '標準'
+                        return '標準（書式なし）'
                     if fl == '@':
                         return '文字列'
                     if re.search(r'0\.0+%|0%', fl):
                         return 'パーセント'
-                    if '¥' in fmt or re.search(r'\[\$', fmt):
+                    if '¥' in fmt or re.search(r'\[\$(?!-)', fmt):
                         return '通貨'
-                    if re.search(r'yyyy|yy|m/d|y/m|mmm', fl):
-                        return '日付'
+                    if re.search(r'\[\$-f800', fmt, re.IGNORECASE) and re.search(r'ggg?|(?<![a-z])e(?![e])', fmt, re.IGNORECASE):
+                        return '日付（和暦形式）'
+                    if re.search(r'\[\$-', fmt) or re.search(r'yyyy|yy|m/d|y/m|mmm', fl):
+                        return '日付（西暦形式）'
                     if re.search(r'hh?:mm', fl):
                         return '時刻'
                     if re.search(r'^[0#,]+\.?[0#]*$', fl):
                         return '数値'
                     return f'書式（{fmt}）'
 
+                def _clean_fmt_code(fmt):
+                    """書式コードを読みやすく整形（ロケール除去・エスケープ除去）"""
+                    s = re.sub(r'\[\$-[0-9A-Fa-f]+\]', '', fmt)
+                    s = re.sub(r'\\(.)', r'\1', s)
+                    s = s.strip()
+                    return s if s else fmt
+
                 # 表示結果が同じ場合は書式の種類を日本語で表示
                 if master_display == check_display:
                     lines.append(f"{num}表示形式が違う:")
-                    lines.append(f" 原本: {_fmt_code_ja(master_val)}")
-                    lines.append(f" 比較データ: {_fmt_code_ja(check_val)}")
+                    m_type = _fmt_code_ja(master_val)
+                    c_type = _fmt_code_ja(check_val)
+                    if m_type == c_type:
+                        lines.append(f" 原本: {m_type}（{_clean_fmt_code(master_val)}）")
+                        lines.append(f" 比較データ: {c_type}（{_clean_fmt_code(check_val)}）")
+                    else:
+                        lines.append(f" 原本: {m_type}")
+                        lines.append(f" 比較データ: {c_type}")
                 else:
                     # detail の表示も実際の値に差し替え
                     detail = f"表示形式が違う: {master_display} -> {check_display}"
