@@ -678,7 +678,11 @@ class ExcelExporter:
                     use_comma = ',' in fmt
                     try:
                         num_str = f"{value:,.{decimals}f}" if use_comma else f"{value:.{decimals}f}"
-                        return currency_prefix + num_str
+                        result = currency_prefix + num_str
+                        # リテラル文字（"..."）があり通貨記号でない場合はユーザー定義書式を示す
+                        if '"' in fmt and not currency_prefix:
+                            result += "（ユーザー定義書式あり）"
+                        return result
                     except Exception:
                         return str(value)
 
@@ -703,7 +707,7 @@ class ExcelExporter:
                         return '時刻'
                     if re.search(r'^[0#,]+\.?[0#]*$', fl):
                         return '数値'
-                    return f'書式（{fmt}）'
+                    return 'ユーザー定義書式'
 
                 def _clean_fmt_code(fmt):
                     """書式コードを読みやすく整形（ロケール除去・エスケープ除去）"""
