@@ -444,7 +444,7 @@ class ExcelExporter:
                                 for c in range(min_col, max_col + 1):
                                     target = ws.cell(row=r, column=c)
                                     if not target.fill or target.fill.fill_type != 'solid':
-                                        target.fill = self.orange_fill
+                                        target.fill = self.yellow_fill
                             # 範囲の左上にコメント付与（既存コメントに追記）
                             tl = ws.cell(row=min_row, column=min_col)
                             cf_comment = f"📋 {label}\n範囲: {ref}"
@@ -463,7 +463,7 @@ class ExcelExporter:
                                 target = ws.cell(row=r, column=c)
                                 # 既存の黄色（値差異）を上書きしない
                                 if target.fill.fill_type != 'solid':
-                                    target.fill = self.orange_fill
+                                    target.fill = self.yellow_fill
                                 cf_comment = f"📋 {label}\n範囲: {ref}"
                                 if target.comment:
                                     target.comment.text += f"\n\n{cf_comment}"
