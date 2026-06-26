@@ -78,7 +78,8 @@ class ExcelExporter:
         )
         self._create_detail_sheet(cell_diffs, hidden_diffs, image_diffs)
         self._create_result_sheet_with_format(
-            ws_check, cell_diffs, hidden_diffs, image_diffs, ws_master=ws_master
+            ws_check, cell_diffs, hidden_diffs, image_diffs,
+            ws_master=ws_master, setting_diffs=setting_diffs
         )
         if setting_diffs:
             self._create_settings_diff_sheet(setting_diffs)
@@ -231,7 +232,7 @@ class ExcelExporter:
                     pass
 
     def _create_result_sheet_with_format(
-        self, ws_check, cell_diffs, hidden_diffs, image_diffs, ws_master=None
+        self, ws_check, cell_diffs, hidden_diffs, image_diffs, ws_master=None, setting_diffs=None
     ):
         ws = self.wb.create_sheet("比較結果")
         diff_positions = {diff['position']: diff for diff in cell_diffs}
@@ -408,6 +409,59 @@ class ExcelExporter:
                         target.comment.width = 300
                         target.comment.height = 80
                         ws.row_dimensions[row].hidden = False
+                    except Exception:
+                        pass
+
+        # 条件付き書式の差異を比較結果シートにオレンジでハイライト
+        if setting_diffs:
+            import re as _re2
+            from openpyxl.utils import range_boundaries, column_index_from_string as _col_idx
+            for d in setting_diffs:
+                item = d.get('item', '')
+                if '条件付き書式' not in item:
+                    continue
+                # item例: "条件付き書式: Sheet1 [<ConditionalFormatting C63>]"
+                # セル参照を抽出
+                bracket = _re2.search(r'\[([^\]]+)\]', item)
+                if not bracket:
+                    continue
+                rng_str = bracket.group(1)
+                # "<ConditionalFormatting C63>" → "C63" のような形式に対応
+                cell_refs = _re2.findall(r'([A-Z]+\d+(?::[A-Z]+\d+)?)', rng_str)
+                master_s = d.get('master', '')
+                check_s = d.get('check', '')
+                if master_s == '(なし)':
+                    label = "条件付き書式: なし → あり"
+                elif check_s == '(なし)':
+                    label = "条件付き書式: あり → なし"
+                else:
+                    label = "条件付き書式: ルールが違う"
+                for ref in cell_refs:
+                    try:
+                        if ':' in ref:
+                            min_col, min_row, max_col, max_row = range_boundaries(ref)
+                            for r in range(min_row, max_row + 1):
+                                for c in range(min_col, max_col + 1):
+                                    target = ws.cell(row=r, column=c)
+                                    if not target.fill or target.fill.fill_type != 'solid':
+                                        target.fill = self.orange_fill
+                            # 範囲の左上にコメント付与
+                            tl = ws.cell(row=min_row, column=min_col)
+                            tl.comment = Comment(f"📋 {label}\n範囲: {ref}", "零(ZERO)")
+                            tl.comment.width = 300
+                            tl.comment.height = 80
+                            ws.row_dimensions[min_row].hidden = False
+                        else:
+                            col_s = _re2.match(r'([A-Z]+)(\d+)', ref)
+                            if col_s:
+                                c = _col_idx(col_s.group(1))
+                                r = int(col_s.group(2))
+                                target = ws.cell(row=r, column=c)
+                                target.fill = self.orange_fill
+                                target.comment = Comment(f"📋 {label}\n範囲: {ref}", "零(ZERO)")
+                                target.comment.width = 300
+                                target.comment.height = 80
+                                ws.row_dimensions[r].hidden = False
                     except Exception:
                         pass
 
