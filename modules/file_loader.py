@@ -90,10 +90,19 @@ class ExcelLoader:
             }
             
             # 塗りつぶし情報
+            def _fill_color(color_obj):
+                try:
+                    if color_obj and hasattr(color_obj, 'rgb'):
+                        rgb_val = color_obj.rgb
+                        if isinstance(rgb_val, str) and len(rgb_val) in (6, 8):
+                            return rgb_val
+                except Exception:
+                    pass
+                return None
             fill_info = {
                 'type': cell.fill.fill_type if cell.fill else None,
-                'start_color': str(cell.fill.start_color.rgb) if cell.fill and cell.fill.start_color and hasattr(cell.fill.start_color, 'rgb') else None,
-                'end_color': str(cell.fill.end_color.rgb) if cell.fill and cell.fill.end_color and hasattr(cell.fill.end_color, 'rgb') else None
+                'start_color': _fill_color(cell.fill.start_color) if cell.fill else None,
+                'end_color': _fill_color(cell.fill.end_color) if cell.fill else None,
             }
             
             # 罫線情報（スタイル＋色）

@@ -683,6 +683,20 @@ class ExcelExporter:
                 c_hint = reading_hints.get(cv_vis, '')
                 master_display = f"{m_short}の　{mv_vis}{m_hint}" if mv else master_val
                 check_display = f"{c_short}の　{cv_vis}{c_hint}" if cv else check_val
+            elif d['type'] in ('fill_color', 'font_color', 'border_top_color',
+                               'border_bottom_color', 'border_left_color', 'border_right_color'):
+                def _color_ja(v):
+                    if v is None or v == '' or v == 'None':
+                        return '塗りつぶしあり'
+                    if v in ('00000000', '00FFFFFF', '000000'):
+                        return '塗りつぶしなし'
+                    if v in ('FF000000', '000000'):
+                        return '黒'
+                    if v in ('FFFFFFFF', 'FFFFFF'):
+                        return '白'
+                    return f'#{v}'
+                master_display = _color_ja(master_val) if master_val else '塗りつぶしなし'
+                check_display  = _color_ja(check_val)  if check_val  else '塗りつぶしなし'
             else:
                 master_display = master_val[:50]
                 check_display = check_val[:50]
