@@ -957,7 +957,11 @@ class SheetComparator:
                 dvs = getattr(ws, 'data_validations', None)
                 if dvs is None:
                     return result
-                dv_list = getattr(dvs, 'dataValidation', [])
+                # openpyxl 3.x: 直接イテレーション、失敗時はdataValidation属性
+                try:
+                    dv_list = list(dvs)
+                except Exception:
+                    dv_list = getattr(dvs, 'dataValidation', [])
                 for dv in dv_list:
                     key = str(getattr(dv, 'sqref', ''))
                     result[key] = {

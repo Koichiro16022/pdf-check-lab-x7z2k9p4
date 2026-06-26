@@ -418,7 +418,7 @@ class ExcelExporter:
             from openpyxl.utils import range_boundaries, column_index_from_string as _col_idx
             for d in setting_diffs:
                 item = d.get('item', '')
-                if '条件付き書式' not in item:
+                if '条件付き書式' not in item and '入力規則' not in item:
                     continue
                 # item例: "条件付き書式: Sheet1 [<ConditionalFormatting C63>]"
                 # セル参照を抽出
@@ -430,12 +430,14 @@ class ExcelExporter:
                 cell_refs = _re2.findall(r'([A-Z]+\d+(?::[A-Z]+\d+)?)', rng_str)
                 master_s = d.get('master', '')
                 check_s = d.get('check', '')
+                is_dv = '入力規則' in item
+                kind = "入力規則" if is_dv else "条件付き書式"
                 if master_s == '(なし)':
-                    label = "条件付き書式: なし → あり"
+                    label = f"{kind}: なし → あり"
                 elif check_s == '(なし)':
-                    label = "条件付き書式: あり → なし"
+                    label = f"{kind}: あり → なし"
                 else:
-                    label = "条件付き書式: ルールが違う"
+                    label = f"{kind}: 設定が違う"
                 def _is_yellow(cell):
                     try:
                         return (cell.fill.fill_type == 'solid' and
