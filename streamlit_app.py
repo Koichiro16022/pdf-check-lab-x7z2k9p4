@@ -535,7 +535,8 @@ if file_master and file_check:
                             all_cell_diffs,
                             all_hidden_diffs,
                             all_image_diffs,
-                            all_setting_diffs
+                            all_setting_diffs,
+                            ws_master=ws_master
                         )
                         
                         # セッションに保存

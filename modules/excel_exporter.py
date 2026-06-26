@@ -70,7 +70,7 @@ class ExcelExporter:
         return output.getvalue()
 
     def create_report_formatted(
-        self, ws_check, cell_diffs, hidden_diffs, image_diffs, setting_diffs=None
+        self, ws_check, cell_diffs, hidden_diffs, image_diffs, setting_diffs=None, ws_master=None
     ):
         self.wb = Workbook()
         self._create_summary_sheet(
@@ -78,7 +78,7 @@ class ExcelExporter:
         )
         self._create_detail_sheet(cell_diffs, hidden_diffs, image_diffs)
         self._create_result_sheet_with_format(
-            ws_check, cell_diffs, hidden_diffs, image_diffs
+            ws_check, cell_diffs, hidden_diffs, image_diffs, ws_master=ws_master
         )
         if setting_diffs:
             self._create_settings_diff_sheet(setting_diffs)
@@ -231,7 +231,7 @@ class ExcelExporter:
                     pass
 
     def _create_result_sheet_with_format(
-        self, ws_check, cell_diffs, hidden_diffs, image_diffs
+        self, ws_check, cell_diffs, hidden_diffs, image_diffs, ws_master=None
     ):
         ws = self.wb.create_sheet("比較結果")
         diff_positions = {diff['position']: diff for diff in cell_diffs}
@@ -342,6 +342,74 @@ class ExcelExporter:
                     )
                 except:
                     pass
+
+        # 列幅・行高さの差異を比較結果シートにオレンジでハイライト
+        if ws_master is not None:
+            from openpyxl.utils import column_index_from_string
+
+            def _get_col_widths(w):
+                r = {}
+                for col, cd in w.column_dimensions.items():
+                    v = getattr(cd, 'width', None)
+                    if v is not None:
+                        r[col] = round(float(v), 2)
+                return r
+
+            def _get_row_heights(w):
+                r = {}
+                for row, rd in w.row_dimensions.items():
+                    v = getattr(rd, 'height', None)
+                    if v is not None:
+                        r[row] = round(float(v), 2)
+                return r
+
+            def _col_width_ja(v):
+                if v is None:
+                    return "初期値"
+                return f"{round(v * 0.9375, 1)}"
+
+            cw_m = _get_col_widths(ws_master)
+            cw_c = _get_col_widths(ws_check)
+            for col in set(list(cw_m.keys()) + list(cw_c.keys())):
+                wm, wc = cw_m.get(col), cw_c.get(col)
+                if wm != wc:
+                    try:
+                        col_idx = column_index_from_string(col)
+                        target = ws.cell(row=1, column=col_idx)
+                        target.fill = self.orange_fill
+                        wm_s = _col_width_ja(wm)
+                        wc_s = _col_width_ja(wc)
+                        target.comment = Comment(
+                            f"📐 列幅の差異\n列{col}: 原本 {wm_s} → 比較データ {wc_s}",
+                            "零(ZERO)"
+                        )
+                        target.comment.width = 300
+                        target.comment.height = 80
+                        ws.row_dimensions[1].hidden = False
+                        ws.column_dimensions[col].hidden = False
+                    except Exception:
+                        pass
+
+            rh_m = _get_row_heights(ws_master)
+            rh_c = _get_row_heights(ws_check)
+            for row in set(list(rh_m.keys()) + list(rh_c.keys())):
+                hm, hc = rh_m.get(row), rh_c.get(row)
+                if hm != hc:
+                    try:
+                        target = ws.cell(row=row, column=1)
+                        target.fill = self.orange_fill
+                        import math as _math
+                        hm_s = f"{_math.floor(hm * 10 + 0.5) / 10}" if hm is not None else "初期値"
+                        hc_s = f"{_math.floor(hc * 10 + 0.5) / 10}" if hc is not None else "初期値"
+                        target.comment = Comment(
+                            f"📐 行高さの差異\n{row}行目: 原本 {hm_s} → 比較データ {hc_s}",
+                            "零(ZERO)"
+                        )
+                        target.comment.width = 300
+                        target.comment.height = 80
+                        ws.row_dimensions[row].hidden = False
+                    except Exception:
+                        pass
 
     def _copy_shapes(self, ws_source, ws_target):
         try:
