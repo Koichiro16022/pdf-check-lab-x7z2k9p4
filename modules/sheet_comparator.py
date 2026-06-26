@@ -980,6 +980,25 @@ class SheetComparator:
 
             dv_m = get_dv_summary(ws_m)
             dv_c = get_dv_summary(ws_c)
+            # デバッグログ（確認後削除）
+            import os as _os
+            _log = r'C:\Users\e0964\Desktop\ZERO\dv_debug.txt'
+            with open(_log, 'w', encoding='utf-8') as _f:
+                _dvs_m = getattr(ws_m, 'data_validations', None)
+                _dvs_c = getattr(ws_c, 'data_validations', None)
+                _f.write(f"master dvs type: {type(_dvs_m)}\n")
+                _f.write(f"check dvs type: {type(_dvs_c)}\n")
+                _f.write(f"master dvs dir: {[x for x in dir(_dvs_m) if not x.startswith('_')]}\n")
+                try:
+                    _f.write(f"master list(dvs): {list(_dvs_m)}\n")
+                except Exception as e:
+                    _f.write(f"master list error: {e}\n")
+                try:
+                    _f.write(f"master dataValidation: {getattr(_dvs_m, 'dataValidation', 'attr missing')}\n")
+                except Exception as e:
+                    _f.write(f"master dataValidation error: {e}\n")
+                _f.write(f"dv_m: {dv_m}\n")
+                _f.write(f"dv_c: {dv_c}\n")
             all_refs = sorted(set(list(dv_m.keys()) + list(dv_c.keys())))
 
             for ref in all_refs:
