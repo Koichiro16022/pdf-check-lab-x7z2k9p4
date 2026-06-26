@@ -436,6 +436,13 @@ class ExcelExporter:
                     label = "条件付き書式: あり → なし"
                 else:
                     label = "条件付き書式: ルールが違う"
+                def _is_yellow(cell):
+                    try:
+                        return (cell.fill.fill_type == 'solid' and
+                                cell.fill.fgColor.rgb in ('FFFF00', 'FFFFFF00'))
+                    except Exception:
+                        return False
+
                 for ref in cell_refs:
                     try:
                         if ':' in ref:
@@ -443,7 +450,7 @@ class ExcelExporter:
                             for r in range(min_row, max_row + 1):
                                 for c in range(min_col, max_col + 1):
                                     target = ws.cell(row=r, column=c)
-                                    if not target.fill or target.fill.fill_type != 'solid':
+                                    if not _is_yellow(target):
                                         target.fill = self.yellow_fill
                             # 範囲の左上にコメント付与（既存コメントに追記）
                             tl = ws.cell(row=min_row, column=min_col)
@@ -461,8 +468,8 @@ class ExcelExporter:
                                 c = _col_idx(col_s.group(1))
                                 r = int(col_s.group(2))
                                 target = ws.cell(row=r, column=c)
-                                # 既存の黄色（値差異）を上書きしない
-                                if target.fill.fill_type != 'solid':
+                                # 黄色（値差異）は維持、それ以外は黄色で上書き
+                                if not _is_yellow(target):
                                     target.fill = self.yellow_fill
                                 cf_comment = f"📋 {label}\n範囲: {ref}"
                                 if target.comment:
